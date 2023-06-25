@@ -1,0 +1,21 @@
+---
+- cloudapis.googleapis.com
+- cloudbilling.googleapis.com
+- clouddebugger.googleapis.com
+- cloudidentity.googleapis.com
+- cloudkms.googleapis.com
+- cloudresourcemanager.googleapis.com
+- cloudtrace.googleapis.com
+- datastore.googleapis.com
+- iam.googleapis.com
+- iamcredentials.googleapis.com
+- logging.googleapis.com
+- servicemanagement.googleapis.com
+- serviceusage.googleapis.com
+- storage-api.googleapis.com
+- storage-component.googleapis.com
+- storage.googleapis.com
+- sts.googleapis.com
+- secretmanager.googleapis.com
+- billingbudgets.googleapis.com
+- dns.googleapis.com

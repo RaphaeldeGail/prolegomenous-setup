@@ -7,6 +7,7 @@ from os.path import basename
 from os import environ
 from jinja2 import Environment, select_autoescape, FileSystemLoader
 from schema import Schema, SchemaError
+from time import sleep
 
 # set global variables
 ## the schema for the setup file in YAML
@@ -36,6 +37,7 @@ scopes = ['https://www.googleapis.com/auth/cloud-platform']
 # the with_quota_project(None) method.
 cred = default(scopes=scopes)[0].with_quota_project(None)
 project_api = build('cloudresourcemanager', 'v3', credentials=cred).projects()
+ops_api = build('cloudresourcemanager', 'v3', credentials=cred).operations()
 
 def create_project(body):
     """
@@ -51,7 +53,33 @@ def create_project(body):
     Raises:
         Exception: Raises an exception if the API call fails.
     """
-    return {}
+    request = project_api.create(body=body)
+    operation = request.execute()
+    #{'name': 'operations/cp.4695360767398485598'}
+
+    request = ops_api.get(name=operation['name'])
+
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while not 'done' in request.execute():
+        if time_elapsed > 20:
+            print('project failed to be created', end='')
+            return None
+        time_elapsed += 1
+        print('waiting for project to be created.', end='')
+        sleep(5)
+    #{'name': 'operations/cp.4695360767398485598', 'metadata': {'@type': 'type.googleapis.com/google.cloud.resourcemanager.v3.CreateProjectMetadata', 'createTime': '2023-07-01T17:41:20.508Z', 'gettable': True, 'ready': True}, 'done': True, 'response': {'@type': 'type.googleapis.com/google.cloud.resourcemanager.v3.Project', 'name': 'projects/911063294555', 'parent': 'organizations/66101817749', 'projectId': 'wablablatirf-1234', 'state': 'ACTIVE', 'displayName': 'wablablatirf', 'createTime': '2023-07-01T17:41:22.217Z', 'updateTime': '2023-07-01T17:41:22.217Z', 'etag': 'W/"ed9eaad29d0994b5"', 'labels': {'root': 'true', 'uuid': '1234'}}}
+
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while request.execute()['done'] is False:
+        if time_elapsed > 20:
+            print('project failed to be created.', end='')
+            return None
+        time_elapsed += 1
+        print('waiting for project to be created.', end='')
+        sleep(5)
+    return request.execute()['response']
 
 def set_project(parent, name='root'):
     """
@@ -86,7 +114,7 @@ AND labels.uuid:* AND projectId:{name}-*'.format(parent=parent, name=name)
             "displayName": name,
             "labels": {
                 "root": "true",
-                "uuid": uuid
+                "uuid": str(uuid)
             },
             "parent": parent,
             "projectId": '{name}-{uuid}'.format(name=name, uuid=uuid),

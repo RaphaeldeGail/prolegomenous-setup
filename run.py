@@ -38,14 +38,17 @@ scopes = ['https://www.googleapis.com/auth/cloud-platform']
 cred = default(scopes=scopes)[0].with_quota_project(None)
 project_api = build('cloudresourcemanager', 'v3', credentials=cred).projects()
 ops_api = build('cloudresourcemanager', 'v3', credentials=cred).operations()
+iam_api = build('iam', 'v1', credentials=cred)
 
-def create_project(body):
+def create_project(body, timeout=60):
     """
     Create a project with google API call.
 
     Args:
         parent: string, the organization ID.
         body: dict, the project to be created.
+        timeout: int, the timeout before project creation fails, in seconds.
+            defaults to 60 seconds.
 
     Returns:
         dict, the project created.
@@ -53,22 +56,22 @@ def create_project(body):
     Raises:
         Exception: Raises an exception if the API call fails.
     """
+    # the period is the number, in seconds, between two consecutive checks
+    period = 5
     request = project_api.create(body=body)
     operation = request.execute()
-    #{'name': 'operations/cp.4695360767398485598'}
 
     request = ops_api.get(name=operation['name'])
 
     # this loop will check for updates every 5 seconds during 1 minute.
     time_elapsed = 0
     while not 'done' in request.execute():
-        if time_elapsed > 20:
+        if time_elapsed > timeout % period :
             print('project failed to be created', end='')
             return None
         time_elapsed += 1
         print('waiting for project to be created.', end='')
-        sleep(5)
-    #{'name': 'operations/cp.4695360767398485598', 'metadata': {'@type': 'type.googleapis.com/google.cloud.resourcemanager.v3.CreateProjectMetadata', 'createTime': '2023-07-01T17:41:20.508Z', 'gettable': True, 'ready': True}, 'done': True, 'response': {'@type': 'type.googleapis.com/google.cloud.resourcemanager.v3.Project', 'name': 'projects/911063294555', 'parent': 'organizations/66101817749', 'projectId': 'wablablatirf-1234', 'state': 'ACTIVE', 'displayName': 'wablablatirf', 'createTime': '2023-07-01T17:41:22.217Z', 'updateTime': '2023-07-01T17:41:22.217Z', 'etag': 'W/"ed9eaad29d0994b5"', 'labels': {'root': 'true', 'uuid': '1234'}}}
+        sleep(period)
 
     # this loop will check for updates every 5 seconds during 1 minute.
     time_elapsed = 0
@@ -130,6 +133,60 @@ AND labels.uuid:* AND projectId:{name}-*'.format(parent=parent, name=name)
         result_project = result_project['projects'][0]
     return result_project
 
+def create_workload(parent, body, name):
+    """
+    Create a workload identity with google API call.
+
+    Args:
+        parent: string, the project where the workload identity resides. In
+            the form projects/{projectNumber}.
+        body: dict, the workload identity to be created.
+        name: string, the workload identity ID that will be part of the resource
+            name.
+
+    Returns:
+        dict, the workload identity created.
+
+    Raises:
+        Exception: Raises an exception if the API call fails.
+    """
+    # request = request = iam_api.projects().locations().workloadIdentityPools().create(parent=parent, body=body, workloadIdentityPoolId=name)
+    return {}
+def set_workload_identity(project, name='organization-identity-pool'):
+    """
+    Set a workload_identity. Can either be create, update or leave it as it is.
+
+    Args:
+        project: string, the project where the workload identity resides. In
+            the form projects/{projectNumber}.
+
+    Returns:
+        dict, the result workload_identity.
+    """
+    full_name = '{project}/locations/global/workloadIdentityPools/{name}'.format(project=project, name=name)
+    print(
+        '[workload_identity:{name}] setting up... '.format(name=name),
+        end=''
+    )
+    request = iam_api.projects().locations().workloadIdentityPools().get(name=full_name)
+    try:
+        result_workload = request.execute()
+    except:
+        print('the workload identity will be created... ', end='')
+        body = {
+            "description": 'Workload identity pool for the organization.',
+            "disabled": False,
+            "displayName": "Organization Identity Pool"
+        }
+        result_workload = create_workload(parent=parent, body=body, name=name)
+        if result_workload is None:
+            print('[ERROR] role creation failed')
+            return None
+        print('workload successfully created.')
+        return result_workload
+    print('the workload identity already exists.')
+    return result_workload
+
 # load the environment from setup.yaml
 with open('setup.yaml', 'r') as f:
     setup = safe_load(f)
@@ -144,4 +201,7 @@ org_id = setup['google']['organization']
 ## the organization name as string 'organizations/{org_id}'
 parent = 'organizations/{org_id}'.format(org_id=org_id)
 
-set_project(parent=parent)
+root_project = set_project(parent=parent)
+# print(root_project)
+wrk_id = set_workload_identity(project=root_project['name'])
+# print(wrk_id)

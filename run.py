@@ -38,7 +38,7 @@ scopes = ['https://www.googleapis.com/auth/cloud-platform']
 cred = default(scopes=scopes)[0].with_quota_project(None)
 project_api = build('cloudresourcemanager', 'v3', credentials=cred).projects()
 ops_api = build('cloudresourcemanager', 'v3', credentials=cred).operations()
-iam_api = build('iam', 'v1', credentials=cred)
+iam_api = build('iam', 'v1', credentials=cred).projects().locations()
 
 def create_project(body, timeout=60):
     """
@@ -76,12 +76,12 @@ def create_project(body, timeout=60):
     # this loop will check for updates every 5 seconds during 1 minute.
     time_elapsed = 0
     while request.execute()['done'] is False:
-        if time_elapsed > 20:
+        if time_elapsed > timeout % period :
             print('project failed to be created.', end='')
             return None
         time_elapsed += 1
         print('waiting for project to be created.', end='')
-        sleep(5)
+        sleep(period)
     return request.execute()['response']
 
 def set_project(parent, name='root'):
@@ -133,7 +133,7 @@ AND labels.uuid:* AND projectId:{name}-*'.format(parent=parent, name=name)
         result_project = result_project['projects'][0]
     return result_project
 
-def create_workload(parent, body, name):
+def create_workload(parent, body, name, timeout=60):
     """
     Create a workload identity with google API call.
 
@@ -141,8 +141,10 @@ def create_workload(parent, body, name):
         parent: string, the project where the workload identity resides. In
             the form projects/{projectNumber}.
         body: dict, the workload identity to be created.
-        name: string, the workload identity ID that will be part of the resource
-            name.
+        name: string, the workload identity ID that will be part of the
+            resource name.
+        timeout: int, the timeout before project creation fails, in seconds.
+            defaults to 60 seconds.
 
     Returns:
         dict, the workload identity created.
@@ -150,8 +152,51 @@ def create_workload(parent, body, name):
     Raises:
         Exception: Raises an exception if the API call fails.
     """
-    # request = request = iam_api.projects().locations().workloadIdentityPools().create(parent=parent, body=body, workloadIdentityPoolId=name)
-    return {}
+    # the period is the number, in seconds, between two consecutive checks
+    period = 5
+    request = iam_api.workloadIdentityPools().create(
+        parent=parent,
+        body=body,
+        workloadIdentityPoolId=name
+    )
+    try:
+        operation = request.execute()
+    except Exception as err:
+        raise err('Operation read request failed.')
+
+    request = iam_api.workloadIdentityPools().operations().get(
+        name=operation['name']
+    )
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while not 'done' in request.execute():
+        if time_elapsed > timeout % period :
+            print('workload identity pools failed to be created', end='')
+            return None
+        time_elapsed += 1
+        print('waiting for workload identity pools to be created.', end='')
+        sleep(period)
+
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while request.execute()['done'] is False:
+        if time_elapsed > timeout % period :
+            print('workload identity pools failed to be created.', end='')
+            return None
+        time_elapsed += 1
+        print('waiting for workload identity pools to be created.', end='')
+        sleep(period)
+
+    # the operations method does not return any error or response data after
+    # completion so you have to call the get method to return the workload
+    # identity data
+    full_name = '{parent}/workloadIdentityPools/{name}'.format(
+        parent=parent,
+        name=name
+    )
+    request = iam_api.workloadIdentityPools().get(name=full_name)
+    return request.execute()
+
 def set_workload_identity(project, name='organization-identity-pool'):
     """
     Set a workload_identity. Can either be create, update or leave it as it is.
@@ -159,16 +204,24 @@ def set_workload_identity(project, name='organization-identity-pool'):
     Args:
         project: string, the project where the workload identity resides. In
             the form projects/{projectNumber}.
+        name: string, the workload identity ID that will be part of the
+            resource name. Defaults to 'organization-identity-pool'.
 
     Returns:
-        dict, the result workload_identity.
+        dict, the result workload identity.
     """
-    full_name = '{project}/locations/global/workloadIdentityPools/{name}'.format(project=project, name=name)
+    # full name for workload identity is of the form
+    # projects/{number}/locations/global/workloadIdentityPools/{workloadId}
+    parent = '{project}/locations/global'.format(project=project)
+    full_name = '{parent}/workloadIdentityPools/{name}'.format(
+        parent=parent,
+        name=name
+    )
     print(
-        '[workload_identity:{name}] setting up... '.format(name=name),
+        '[workloadIdentityPools:{name}] setting up... '.format(name=name),
         end=''
     )
-    request = iam_api.projects().locations().workloadIdentityPools().get(name=full_name)
+    request = iam_api.workloadIdentityPools().get(name=full_name)
     try:
         result_workload = request.execute()
     except:
@@ -176,7 +229,7 @@ def set_workload_identity(project, name='organization-identity-pool'):
         body = {
             "description": 'Workload identity pool for the organization.',
             "disabled": False,
-            "displayName": "Organization Identity Pool"
+            "displayName": name.replace('-', ' ').title()
         }
         result_workload = create_workload(parent=parent, body=body, name=name)
         if result_workload is None:
@@ -184,8 +237,82 @@ def set_workload_identity(project, name='organization-identity-pool'):
             return None
         print('workload successfully created.')
         return result_workload
-    print('the workload identity already exists.')
+    if result_workload['state'] == 'DELETED':
+        print('[ERROR] the workload identity exists but is in DELETED state.')
+        print('Please undo the DELETED state before proceeding.')
+        return None
+    print('workload identity already exists.')
     return result_workload
+
+def create_provider(parent, body, name, timeout=60):
+    """
+    Create a workload identity with google API call.
+
+    Args:
+        parent: string, the workload identity where the provider resides. In
+            the form projects/{projectNumber}/locations/global/workloadIdentityPools/{name}.
+        body: dict, the provider to be created.
+        name: string, the workload identity provider ID that will be part of the
+            resource name.
+        timeout: int, the timeout before project creation fails, in seconds.
+            defaults to 60 seconds.
+
+    Returns:
+        dict, the workload provider created.
+
+    Raises:
+        Exception: Raises an exception if the API call fails.
+    """
+    return {}
+
+def set_workload_provider(workload, terraform_org, name='tfc-oidc'):
+    """
+    Set a workload identity provider. Can either be create, update or leave it
+    as it is.
+
+    Args:
+        workload: string, the name of the workload identity resource.
+        terraform_org: string, the name of the Terraform Cloud organization
+            that will be used to provide identities for the Google Cloud
+            organization.
+        name: string, the name of the provider for the workload.
+
+    Returns:
+        dict, the result workload identity provider.
+    """
+    full_name = '{wrkId}/providers/{name}'.format(wrkId=workload, name=name)
+    print(
+        '[workloadProviders:{name}] setting up... '.format(name=name),
+        end=''
+    )
+    request = iam_api.workloadIdentityPools().providers().get(name=full_name)
+    try:
+        result_provider = request.execute()
+    except:
+        print('the workload provider will be created... ', end='')
+        body = {
+            'attributeCondition': 'assertion.sub.startsWith("organization:{org}:project:Workspaces")'.format(org=terraform_org),
+            "attributeMapping": {
+                "a_key": "A String",
+            },
+            "description": "A String",
+            "disabled": False,
+            "displayName": "A String",
+            "oidc": {
+                "allowedAudiences": [
+                    "A String",
+                ],
+                "issuerUri": "A String"
+            }
+        }
+        result_provider = create_provider(parent=workload, body=body, name=name)
+        if result_provider is None:
+            print('[ERROR] workload provider creation failed')
+            return None
+        print('workload provider successfully created.')
+        return result_provider
+    print('workload provider already exists.')
+    return result_provider
 
 # load the environment from setup.yaml
 with open('setup.yaml', 'r') as f:
@@ -205,3 +332,5 @@ root_project = set_project(parent=parent)
 # print(root_project)
 wrk_id = set_workload_identity(project=root_project['name'])
 # print(wrk_id)
+provider = set_workload_provider(workload=wrk_id['name'], terraform_org=setup['terraform']['organization'])
+# print(provider)

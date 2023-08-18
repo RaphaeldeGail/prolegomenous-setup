@@ -54,7 +54,8 @@ def create_project(body, timeout=60):
         dict, the project created.
 
     Raises:
-        Exception: Raises an exception if the API call fails.
+        RuntimeError: Raises an exception if the API call does not return a
+            successful response.
     """
     # the period is the number, in seconds, between two consecutive checks
     period = 5
@@ -67,20 +68,18 @@ def create_project(body, timeout=60):
     time_elapsed = 0
     while not 'done' in request.execute():
         if time_elapsed > timeout % period :
-            print('project failed to be created', end='')
-            return None
+            raise RuntimeError('timeout before project creation status is available.')
         time_elapsed += 1
-        print('waiting for project to be created.', end='')
+        print('waiting for project creation status.', end='')
         sleep(period)
 
     # this loop will check for updates every 5 seconds during 1 minute.
     time_elapsed = 0
     while request.execute()['done'] is False:
         if time_elapsed > timeout % period :
-            print('project failed to be created.', end='')
-            return None
+            raise RuntimeError('timeout before project creation is done.')
         time_elapsed += 1
-        print('waiting for project to be created.', end='')
+        print('waiting for project creation to be done.', end='')
         sleep(period)
     return request.execute()['response']
 
@@ -97,41 +96,45 @@ def set_project(parent, name='root'):
     Returns:
         dict, the result project.
     """
+    # Declare the resource project
+    # random UUID for the project
+    uuid = 1234
+    body = {
+        "displayName": name,
+        "labels": {
+            "root": "true",
+            "uuid": str(uuid)
+        },
+        "parent": parent,
+        "projectId": '{name}-{uuid}'.format(name=name, uuid=uuid),
+    }
     print(
         '[projects:{project}] setting up... '.format(project=name),
         end=''
     )
+    # Look for a project that already matches the declaration
     # this is the query to find the project
     query = 'displayName={name} AND parent={parent} AND labels.root=true \
 AND labels.uuid:* AND projectId:{name}-*'.format(parent=parent, name=name)
     request = project_api.search(query=query)
     try:
-        result_project = request.execute()
+        result_projects = request.execute()
     except:
         print('Error searching for projects.', end='')
-    if not 'projects' in result_project:
+    # If the project does not exist, create it
+    if not 'projects' in result_projects:
         print('the project will be created... ', end='')
-        # random UUID for the project
-        uuid = 1234
-        body = {
-            "displayName": name,
-            "labels": {
-                "root": "true",
-                "uuid": str(uuid)
-            },
-            "parent": parent,
-            "projectId": '{name}-{uuid}'.format(name=name, uuid=uuid),
-        }
+
         result_project = create_project(body=body)
         if result_project is None:
             print('[ERROR] project creation failed')
             return None
         print('project successfully created.')
         return result_project
+    # Else, return the project data found
     else:
         print('the project is already up-to-date.')
-        result_project = result_project['projects'][0]
-    return result_project
+    return result_projects['projects'][0]
 
 def create_workload(parent, body, name, timeout=60):
     """
@@ -217,20 +220,24 @@ def set_workload_identity(project, name='organization-identity-pool'):
         parent=parent,
         name=name
     )
+    # Declare the resource workload identity pool
+    body = {
+        "description": 'Workload identity pool for the organization.',
+        "disabled": False,
+        "displayName": name.replace('-', ' ').title()
+    }
     print(
         '[workloadIdentityPools:{name}] setting up... '.format(name=name),
         end=''
     )
+    # Look for a workload identity pool that already matches the full name
     request = iam_api.workloadIdentityPools().get(name=full_name)
     try:
         result_workload = request.execute()
+    # If the workload identity pool does not exist, create it
     except:
         print('the workload identity will be created... ', end='')
-        body = {
-            "description": 'Workload identity pool for the organization.',
-            "disabled": False,
-            "displayName": name.replace('-', ' ').title()
-        }
+
         result_workload = create_workload(parent=parent, body=body, name=name)
         if result_workload is None:
             print('[ERROR] role creation failed')
@@ -241,6 +248,10 @@ def set_workload_identity(project, name='organization-identity-pool'):
         print('[ERROR] the workload identity exists but is in DELETED state.')
         print('Please undo the DELETED state before proceeding.')
         return None
+    # compare the workload identity pool declared and the one existing
+    if not dict(body.items() - result_workload.items()) is None:
+        print('the workload identity will be updated... ', end='')
+        # update the workload
     print('workload identity already exists.')
     return result_workload
 

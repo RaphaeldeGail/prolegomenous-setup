@@ -3,8 +3,6 @@
 from google.auth import default
 from googleapiclient.discovery import build
 from yaml import safe_load
-from os.path import basename
-from os import environ
 from jinja2 import Environment, select_autoescape, FileSystemLoader
 from schema import Schema, SchemaError
 from time import sleep
@@ -153,7 +151,8 @@ def create_workload(parent, body, name, timeout=60):
         dict, the workload identity created.
 
     Raises:
-        Exception: Raises an exception if the API call fails.
+        RuntimeError: Raises an exception if the API call does not return a
+            successful response.
     """
     # the period is the number, in seconds, between two consecutive checks
     period = 5
@@ -174,20 +173,18 @@ def create_workload(parent, body, name, timeout=60):
     time_elapsed = 0
     while not 'done' in request.execute():
         if time_elapsed > timeout % period :
-            print('workload identity pools failed to be created', end='')
-            return None
+            raise RuntimeError('timeout before workload identity pool creation status is available.')
         time_elapsed += 1
-        print('waiting for workload identity pools to be created.', end='')
+        print('waiting for workload identity pool creation status.', end='')
         sleep(period)
 
     # this loop will check for updates every 5 seconds during 1 minute.
     time_elapsed = 0
     while request.execute()['done'] is False:
         if time_elapsed > timeout % period :
-            print('workload identity pools failed to be created.', end='')
-            return None
+            raise RuntimeError('timeout before workload identity pool creation is done.')
         time_elapsed += 1
-        print('waiting for workload identity pools to be created.', end='')
+        print('waiting for workload identity pool creation to be done.', end='')
         sleep(period)
 
     # the operations method does not return any error or response data after
@@ -198,6 +195,58 @@ def create_workload(parent, body, name, timeout=60):
         name=name
     )
     request = iam_api.workloadIdentityPools().get(name=full_name)
+    return request.execute()
+
+def update_workload(name, body, updateMask, timeout=60):
+    """
+    Update a workload identity with google API call.
+
+    Args:
+        name: string, the workload identity ID that will be part of the
+            resource name.
+        body: dict, the workload identity to be updated.
+        updateMask: string, comma-separated keys that will be updated in the
+            resource
+        timeout: int, the timeout before project creation fails, in seconds.
+            defaults to 60 seconds.
+
+    Returns:
+        dict, the workload identity created.
+
+    Raises:
+        RuntimeError: Raises an exception if the API call does not return a
+            successful response.
+    """
+    period = 5
+    request = iam_api.workloadIdentityPools().patch(
+        name=name,
+        body=body,
+        updateMask=updateMask
+    )
+    operation = request.execute()
+    request = iam_api.workloadIdentityPools().operations().get(
+        name=operation['name']
+    )
+    result = request.execute()
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while not 'done' in request.execute():
+        if time_elapsed > timeout % period :
+            raise RuntimeError('timeout before workload identity pool update status is available.')
+        time_elapsed += 1
+        print('waiting for workload identity pool update status.', end='')
+        sleep(period)
+
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while request.execute()['done'] is False:
+        if time_elapsed > timeout % period :
+            print('workload identity pools failed to be updated.', end='')
+            raise RuntimeError('timeout before workload identity pool update is done.')
+        time_elapsed += 1
+        print('waiting for workload identity pool update to be done.', end='')
+        sleep(period)
+    request = iam_api.workloadIdentityPools().get(name=name)
     return request.execute()
 
 def set_workload_identity(project, name='organization-identity-pool'):
@@ -222,7 +271,7 @@ def set_workload_identity(project, name='organization-identity-pool'):
     )
     # Declare the resource workload identity pool
     body = {
-        "description": 'Workload identity pool for the organization.',
+        "description": 'Workload identity pool for the {org} organization.'.format(org=org_id),
         "disabled": False,
         "displayName": name.replace('-', ' ').title()
     }
@@ -249,9 +298,17 @@ def set_workload_identity(project, name='organization-identity-pool'):
         print('Please undo the DELETED state before proceeding.')
         return None
     # compare the workload identity pool declared and the one existing
-    if not dict(body.items() - result_workload.items()) is None:
+    diff = dict(body.items() - result_workload.items())
+    if 'displayName' in diff or 'description' in diff:
         print('the workload identity will be updated... ', end='')
         # update the workload
+        result_workload = update_workload(
+            name=full_name,
+            body=body,
+            updateMask=','.join(diff.keys())
+        )
+        print('workload successfully updated.')
+        return result_workload
     print('workload identity already exists.')
     return result_workload
 
@@ -343,5 +400,12 @@ root_project = set_project(parent=parent)
 # print(root_project)
 wrk_id = set_workload_identity(project=root_project['name'])
 # print(wrk_id)
-provider = set_workload_provider(workload=wrk_id['name'], terraform_org=setup['terraform']['organization'])
+provider = set_workload_provider(
+    workload=wrk_id['name'],
+    terraform_org=setup['terraform']['organization']
+)
 # print(provider)
+# Close all connections
+project_api.close()
+ops_api.close()
+iam_api.close()

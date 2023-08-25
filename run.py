@@ -128,7 +128,6 @@ AND labels.uuid:* AND projectId:{name}-*'.format(parent=parent, name=name)
     # If the project does not exist, create it
     if not 'projects' in result_projects:
         print('the project will be created... ', end='')
-
         result_project = create_project(body=body)
         if result_project is None:
             print('[ERROR] project creation failed')
@@ -355,35 +354,46 @@ def set_workload_provider(workload, terraform_org, federation, name='tfc-oidc'):
     Returns:
         dict, the result workload identity provider.
     """
+    # The name of the provider resource in Google Cloud fashion
     full_name = '{wrkId}/providers/{name}'.format(wrkId=workload, name=name)
+    # Declare the resource provider
+    body = {
+        'attributeCondition': 'assertion.sub.startsWith("organization:{org}:project:Workspaces")'.format(org=terraform_org),
+        'attributeMapping': federation['attributeMapping'],
+        'description': federation['description'],
+        'disabled': False,
+        'displayName': federation['displayName'],
+        'oidc': {
+            'allowedAudiences': [
+                'https://tfc.{org}'.format(org=org_name),
+            ],
+            'issuerUri': 'https://app.terraform.io'
+        }
+    }
     print(
         '[workloadProviders:{name}] setting up... '.format(name=name),
         end=''
     )
+    # Look for an already existing provider
     request = iam_api.workloadIdentityPools().providers().get(name=full_name)
     try:
         result_provider = request.execute()
     except:
         print('the workload provider will be created... ', end='')
-        body = {
-            'attributeCondition': 'assertion.sub.startsWith("organization:{org}:project:Workspaces")'.format(org=terraform_org),
-            'attributeMapping': provider['attributeMapping'],
-            'description': provider['description'],
-            'disabled': False,
-            'displayName': provider['displayName'],
-            'oidc': {
-                'allowedAudiences': [
-                    'https://tfc.{org}'.format(org=org_name),
-                ],
-                'issuerUri': "https://app.terraform.io"
-            }
-        }
         result_provider = create_provider(parent=workload, body=body, name=name)
         if result_provider is None:
             print('[ERROR] workload provider creation failed')
             return None
         print('workload provider successfully created.')
         return result_provider
+    # compare the workload identity pool declared and the one existing
+    updateMask = []
+    for key in set(body.keys()).intersection(result_provider.keys()):
+        if body[key] != result_provider[key]:
+            updateMask.append(key)
+    if updateMask != []:
+        print('the workload provider will be updated... ', end='')
+        # update provider
     print('workload provider already exists.')
     return result_provider
 

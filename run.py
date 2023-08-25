@@ -34,8 +34,7 @@ scopes = ['https://www.googleapis.com/auth/cloud-platform']
 # default() method and has to be explicitly overidden with
 # the with_quota_project(None) method.
 cred = default(scopes=scopes)[0].with_quota_project(None)
-project_api = build('cloudresourcemanager', 'v3', credentials=cred).projects()
-ops_api = build('cloudresourcemanager', 'v3', credentials=cred).operations()
+cloud_api = build('cloudresourcemanager', 'v3', credentials=cred)
 iam_api = build('iam', 'v1', credentials=cred).projects().locations()
 
 def create_project(body, timeout=60):
@@ -57,29 +56,36 @@ def create_project(body, timeout=60):
     """
     # the period is the number, in seconds, between two consecutive checks
     period = 5
-    request = project_api.create(body=body)
-    operation = request.execute()
+    # error message if creation status times out
+    status_timeout = 'timeout before project creation status is available.'
+    # error message if creation completion times out
+    completion_timeout = 'timeout before project creation is done.'
+    create_request = cloud_api.projects().create(body=body)
+    operation = create_request.execute()
 
-    request = ops_api.get(name=operation['name'])
-
-    # this loop will check for updates every 5 seconds during 1 minute.
-    time_elapsed = 0
-    while not 'done' in request.execute():
-        if time_elapsed > timeout % period :
-            raise RuntimeError('timeout before project creation status is available.')
-        time_elapsed += 1
-        print('waiting for project creation status.', end='')
-        sleep(period)
+    operation_request = cloud_api.operations().get(name=operation['name'])
 
     # this loop will check for updates every 5 seconds during 1 minute.
     time_elapsed = 0
-    while request.execute()['done'] is False:
+    operation = operation_request.execute()
+    while not 'done' in operation:
         if time_elapsed > timeout % period :
-            raise RuntimeError('timeout before project creation is done.')
+            raise RuntimeError(status_timeout)
         time_elapsed += 1
-        print('waiting for project creation to be done.', end='')
+        print('waiting for project creation status... ', end='')
         sleep(period)
-    return request.execute()['response']
+        operation = operation_request.execute()
+
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while operation['done'] is False:
+        if time_elapsed > timeout % period :
+            raise RuntimeError(completion_timeout)
+        time_elapsed += 1
+        print('waiting for project creation to be done... ', end='')
+        sleep(period)
+        operation = operation_request.execute()
+    return operation['response']
 
 def set_project(parent, name='root'):
     """
@@ -114,7 +120,7 @@ def set_project(parent, name='root'):
     # this is the query to find the project
     query = 'displayName={name} AND parent={parent} AND labels.root=true \
 AND labels.uuid:* AND projectId:{name}-*'.format(parent=parent, name=name)
-    request = project_api.search(query=query)
+    request = cloud_api.projects().search(query=query)
     try:
         result_projects = request.execute()
     except:
@@ -175,7 +181,7 @@ def create_workload(parent, body, name, timeout=60):
         if time_elapsed > timeout % period :
             raise RuntimeError('timeout before workload identity pool creation status is available.')
         time_elapsed += 1
-        print('waiting for workload identity pool creation status.', end='')
+        print('waiting for workload identity pool creation status... ', end='')
         sleep(period)
 
     # this loop will check for updates every 5 seconds during 1 minute.
@@ -184,7 +190,7 @@ def create_workload(parent, body, name, timeout=60):
         if time_elapsed > timeout % period :
             raise RuntimeError('timeout before workload identity pool creation is done.')
         time_elapsed += 1
-        print('waiting for workload identity pool creation to be done.', end='')
+        print('waiting for workload identity pool creation to be done... ', end='')
         sleep(period)
 
     # the operations method does not return any error or response data after
@@ -234,7 +240,7 @@ def update_workload(name, body, updateMask, timeout=60):
         if time_elapsed > timeout % period :
             raise RuntimeError('timeout before workload identity pool update status is available.')
         time_elapsed += 1
-        print('waiting for workload identity pool update status.', end='')
+        print('waiting for workload identity pool update status... ', end='')
         sleep(period)
 
     # this loop will check for updates every 5 seconds during 1 minute.
@@ -244,7 +250,7 @@ def update_workload(name, body, updateMask, timeout=60):
             print('workload identity pools failed to be updated.', end='')
             raise RuntimeError('timeout before workload identity pool update is done.')
         time_elapsed += 1
-        print('waiting for workload identity pool update to be done.', end='')
+        print('waiting for workload identity pool update to be done... ', end='')
         sleep(period)
     request = iam_api.workloadIdentityPools().get(name=name)
     return request.execute()
@@ -271,7 +277,7 @@ def set_workload_identity(project, name='organization-identity-pool'):
     )
     # Declare the resource workload identity pool
     body = {
-        "description": 'Workload identity pool for the {org} organization.'.format(org=org_id),
+        "description": 'Workload identity pool for the {org} organization.'.format(org=org_name),
         "disabled": False,
         "displayName": name.replace('-', ' ').title()
     }
@@ -333,7 +339,7 @@ def create_provider(parent, body, name, timeout=60):
     """
     return {}
 
-def set_workload_provider(workload, terraform_org, name='tfc-oidc'):
+def set_workload_provider(workload, terraform_org, federation, name='tfc-oidc'):
     """
     Set a workload identity provider. Can either be create, update or leave it
     as it is.
@@ -343,6 +349,7 @@ def set_workload_provider(workload, terraform_org, name='tfc-oidc'):
         terraform_org: string, the name of the Terraform Cloud organization
             that will be used to provide identities for the Google Cloud
             organization.
+        federation: dict, the resource describing the identity federation.
         name: string, the name of the provider for the workload.
 
     Returns:
@@ -360,17 +367,15 @@ def set_workload_provider(workload, terraform_org, name='tfc-oidc'):
         print('the workload provider will be created... ', end='')
         body = {
             'attributeCondition': 'assertion.sub.startsWith("organization:{org}:project:Workspaces")'.format(org=terraform_org),
-            "attributeMapping": {
-                "a_key": "A String",
-            },
-            "description": "A String",
-            "disabled": False,
-            "displayName": "A String",
-            "oidc": {
-                "allowedAudiences": [
-                    "A String",
+            'attributeMapping': provider['attributeMapping'],
+            'description': provider['description'],
+            'disabled': False,
+            'displayName': provider['displayName'],
+            'oidc': {
+                'allowedAudiences': [
+                    'https://tfc.{org}'.format(org=org_name),
                 ],
-                "issuerUri": "A String"
+                'issuerUri': "https://app.terraform.io"
             }
         }
         result_provider = create_provider(parent=workload, body=body, name=name)
@@ -391,10 +396,17 @@ try:
 except SchemaError as se:
     raise se
 
+# load the OpenID federation declaration from federation.yaml
+with open('federation.yaml', 'r') as f:
+    federation = safe_load(f)
+
 # the organization number
 org_id = setup['google']['organization']
 ## the organization name as string 'organizations/{org_id}'
 parent = 'organizations/{org_id}'.format(org_id=org_id)
+## the organization display name
+org_name = cloud_api.organizations().get(name=parent).execute()['displayName']
+print('Organization name: ' + org_name)
 
 root_project = set_project(parent=parent)
 # print(root_project)
@@ -402,10 +414,10 @@ wrk_id = set_workload_identity(project=root_project['name'])
 # print(wrk_id)
 provider = set_workload_provider(
     workload=wrk_id['name'],
-    terraform_org=setup['terraform']['organization']
+    terraform_org=setup['terraform']['organization'],
+    federation=federation
 )
 # print(provider)
 # Close all connections
-project_api.close()
-ops_api.close()
+cloud_api.close()
 iam_api.close()

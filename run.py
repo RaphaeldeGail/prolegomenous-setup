@@ -6,6 +6,7 @@ from yaml import safe_load
 from jinja2 import Environment, select_autoescape, FileSystemLoader
 from schema import Schema, SchemaError
 from time import sleep
+import re
 
 # set global variables
 ## the schema for the setup file in YAML
@@ -36,6 +37,11 @@ scopes = ['https://www.googleapis.com/auth/cloud-platform']
 cred = default(scopes=scopes)[0].with_quota_project(None)
 cloud_api = build('cloudresourcemanager', 'v3', credentials=cred)
 iam_api = build('iam', 'v1', credentials=cred).projects().locations()
+## global organization setup data from the jinja template.
+resources = Environment(
+    loader=FileSystemLoader(searchpath='./resources/'),
+    autoescape=select_autoescape()
+)
 
 def create_project(body, timeout=60):
     """
@@ -103,15 +109,13 @@ def set_project(parent, name='root'):
     # Declare the resource project
     # random UUID for the project
     uuid = 1234
-    body = {
-        "displayName": name,
-        "labels": {
-            "root": "true",
-            "uuid": str(uuid)
-        },
-        "parent": parent,
-        "projectId": '{name}-{uuid}'.format(name=name, uuid=uuid),
-    }
+    body = safe_load(
+        resources.get_template('project.yaml.j2').render(
+            name=name,
+            parent=parent,
+            uuid=str(uuid)
+        )
+    )
     print(
         '[projects:{project}] setting up... '.format(project=name),
         end=''
@@ -124,22 +128,26 @@ AND labels.uuid:* AND projectId:{name}-*'.format(parent=parent, name=name)
     try:
         result_projects = request.execute()
     except:
-        print('Error searching for projects.', end='')
+        print('Error searching for the root project.', end='')
     # If the project does not exist, create it
     if not 'projects' in result_projects:
         print('the project will be created... ', end='')
         result_project = create_project(body=body)
-        if result_project is None:
-            print('[ERROR] project creation failed')
-            return None
         print('project successfully created.')
         return result_project
     # Else, return the project data found
-    else:
-        print('the project is already up-to-date.')
+    projectId = result_projects['projects'][0]['projectId']
+    uuid = re.search(r".*-([0-9]*)", projectId).group(1)
+    if result_projects['projects'][0]['labels']['uuid'] != uuid:
+        print('the project will be updated... ', end='')
+        # update the project
+        # return project resource
+        print('project successfully updated.')
+        return None
+    print('the project is already up-to-date.')
     return result_projects['projects'][0]
 
-def create_workload(parent, body, name, timeout=60):
+def create_workload_identity(parent, body, name, timeout=60):
     """
     Create a workload identity with google API call.
 
@@ -202,7 +210,7 @@ def create_workload(parent, body, name, timeout=60):
     request = iam_api.workloadIdentityPools().get(name=full_name)
     return request.execute()
 
-def update_workload(name, body, updateMask, timeout=60):
+def update_workload_identity(name, body, updateMask, timeout=60):
     """
     Update a workload identity with google API call.
 
@@ -232,7 +240,6 @@ def update_workload(name, body, updateMask, timeout=60):
     request = iam_api.workloadIdentityPools().operations().get(
         name=operation['name']
     )
-    result = request.execute()
     # this loop will check for updates every 5 seconds during 1 minute.
     time_elapsed = 0
     while not 'done' in request.execute():
@@ -256,10 +263,10 @@ def update_workload(name, body, updateMask, timeout=60):
 
 def set_workload_identity(project, name='organization-identity-pool'):
     """
-    Set a workload_identity. Can either be create, update or leave it as it is.
+    Set a workload identity pool. Can either be create, update or leave it as it is.
 
     Args:
-        project: string, the project where the workload identity resides. In
+        project: string, the project where the workload identity pool resides. In
             the form projects/{projectNumber}.
         name: string, the workload identity ID that will be part of the
             resource name. Defaults to 'organization-identity-pool'.
@@ -275,11 +282,12 @@ def set_workload_identity(project, name='organization-identity-pool'):
         name=name
     )
     # Declare the resource workload identity pool
-    body = {
-        "description": 'Workload identity pool for the {org} organization.'.format(org=org_name),
-        "disabled": False,
-        "displayName": name.replace('-', ' ').title()
-    }
+    body = safe_load(
+        resources.get_template('workload.yaml.j2').render(
+            org_name=org_name,
+            display_name=name.replace('-', ' ').title()
+        )
+    )
     print(
         '[workloadIdentityPools:{name}] setting up... '.format(name=name),
         end=''
@@ -292,10 +300,7 @@ def set_workload_identity(project, name='organization-identity-pool'):
     except:
         print('the workload identity will be created... ', end='')
 
-        result_workload = create_workload(parent=parent, body=body, name=name)
-        if result_workload is None:
-            print('[ERROR] role creation failed')
-            return None
+        result_workload = create_workload_identity(parent=parent, body=body, name=name)
         print('workload successfully created.')
         return result_workload
     if result_workload['state'] == 'DELETED':
@@ -307,71 +312,64 @@ def set_workload_identity(project, name='organization-identity-pool'):
     if 'displayName' in diff or 'description' in diff:
         print('the workload identity will be updated... ', end='')
         # update the workload
-        result_workload = update_workload(
+        result_workload = update_workload_identity(
             name=full_name,
             body=body,
             updateMask=','.join(diff.keys())
         )
         print('workload successfully updated.')
         return result_workload
-    print('workload identity already exists.')
+    print('workload identity is already up-to-date.')
     return result_workload
 
-def create_provider(parent, body, name, timeout=60):
+def create_identity_provider(parent, body, name, timeout=60):
     """
-    Create a workload identity with google API call.
+    Create a workload identity provider with google API call.
 
     Args:
-        parent: string, the workload identity where the provider resides. In
+        parent: string, the workload identity provider where the provider resides. In
             the form projects/{projectNumber}/locations/global/workloadIdentityPools/{name}.
         body: dict, the provider to be created.
         name: string, the workload identity provider ID that will be part of the
             resource name.
-        timeout: int, the timeout before project creation fails, in seconds.
+        timeout: int, the timeout before creation fails, in seconds.
             defaults to 60 seconds.
 
     Returns:
-        dict, the workload provider created.
+        dict, the workload identity provider created.
 
     Raises:
         Exception: Raises an exception if the API call fails.
     """
     return {}
 
-def set_workload_provider(workload, terraform_org, federation, name='tfc-oidc'):
+def set_identity_provider(workload, terraform_org, name='tfc-oidc'):
     """
     Set a workload identity provider. Can either be create, update or leave it
     as it is.
 
     Args:
-        workload: string, the name of the workload identity resource.
+        workload: string, the name of the workload identity provider resource.
         terraform_org: string, the name of the Terraform Cloud organization
             that will be used to provide identities for the Google Cloud
             organization.
-        federation: dict, the resource describing the identity federation.
         name: string, the name of the provider for the workload.
 
     Returns:
         dict, the result workload identity provider.
     """
+    provider_file='provider.yaml.j2'
     # The name of the provider resource in Google Cloud fashion
     full_name = '{wrkId}/providers/{name}'.format(wrkId=workload, name=name)
     # Declare the resource provider
-    body = {
-        'attributeCondition': 'assertion.sub.startsWith("organization:{org}:project:Workspaces")'.format(org=terraform_org),
-        'attributeMapping': federation['attributeMapping'],
-        'description': federation['description'],
-        'disabled': False,
-        'displayName': federation['displayName'],
-        'oidc': {
-            'allowedAudiences': [
-                'https://tfc.{org}'.format(org=org_name),
-            ],
-            'issuerUri': 'https://app.terraform.io'
-        }
-    }
+    body = safe_load(
+        resources.get_template(provider_file).render(
+            terraform_org=terraform_org,
+            org_name=org_name
+        )
+    )
     print(
-        '[workloadProviders:{name}] setting up... '.format(name=name),
+        '[identityProviders:{name}] setting up... '.format(name=name),
         end=''
     )
     # Look for an already existing provider
@@ -379,12 +377,9 @@ def set_workload_provider(workload, terraform_org, federation, name='tfc-oidc'):
     try:
         result_provider = request.execute()
     except:
-        print('the workload provider will be created... ', end='')
-        result_provider = create_provider(parent=workload, body=body, name=name)
-        if result_provider is None:
-            print('[ERROR] workload provider creation failed')
-            return None
-        print('workload provider successfully created.')
+        print('the identity provider will be created... ', end='')
+        result_provider = create_identity_provider(parent=workload, body=body, name=name)
+        print('identity provider successfully created.')
         return result_provider
     # compare the workload identity pool declared and the one existing
     updateMask = []
@@ -392,9 +387,9 @@ def set_workload_provider(workload, terraform_org, federation, name='tfc-oidc'):
         if body[key] != result_provider[key]:
             updateMask.append(key)
     if updateMask != []:
-        print('the workload provider will be updated... ', end='')
+        print('the identity provider will be updated... ', end='')
         # update provider
-    print('workload provider already exists.')
+    print('identity provider is already up-to-date.')
     return result_provider
 
 # load the environment from setup.yaml
@@ -406,10 +401,6 @@ try:
 except SchemaError as se:
     raise se
 
-# load the OpenID federation declaration from federation.yaml
-with open('federation.yaml', 'r') as f:
-    federation = safe_load(f)
-
 # the organization number
 org_id = setup['google']['organization']
 ## the organization name as string 'organizations/{org_id}'
@@ -419,15 +410,14 @@ org_name = cloud_api.organizations().get(name=parent).execute()['displayName']
 print('Organization name: ' + org_name)
 
 root_project = set_project(parent=parent)
-# print(root_project)
+print(root_project)
 wrk_id = set_workload_identity(project=root_project['name'])
-# print(wrk_id)
-provider = set_workload_provider(
+print(wrk_id)
+provider = set_identity_provider(
     workload=wrk_id['name'],
-    terraform_org=setup['terraform']['organization'],
-    federation=federation
+    terraform_org=setup['terraform']['organization']
 )
-# print(provider)
+print(provider)
 # Close all connections
 cloud_api.close()
 iam_api.close()

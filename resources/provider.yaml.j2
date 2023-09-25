@@ -1,3 +1,5 @@
+---
+attributeCondition: assertion.sub.startsWith("organization:{{ terraform_org }}:project:Workspaces")
 attributeMapping:
   attribute.aud: assertion.aud
   attribute.terraform_full_workspace: assertion.terraform_full_workspace
@@ -10,5 +12,10 @@ attributeMapping:
   attribute.terraform_workspace_id: assertion.terraform_workspace_id
   attribute.terraform_workspace_name: assertion.terraform_workspace_name
   google.subject: assertion.sub
-description: Terraform Cloud identity provider.
+description: {{ terraform_org }} Terraform Cloud identity provider for {{ org_name }}.
+disabled: False
 displayName: Terraform Cloud OIDC Provider
+oidc:
+    allowedAudiences:
+        - 'https://tfc.{{ org_name }}'
+    issuerUri: 'https://app.terraform.io'

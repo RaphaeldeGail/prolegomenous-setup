@@ -37,6 +37,7 @@ scopes = ['https://www.googleapis.com/auth/cloud-platform']
 cred = default(scopes=scopes)[0].with_quota_project(None)
 cloud_api = build('cloudresourcemanager', 'v3', credentials=cred)
 iam_api = build('iam', 'v1', credentials=cred).projects().locations()
+service_api = build('serviceusage', 'v1', credentials=cred).services()
 ## global organization setup data from the jinja template.
 resources = Environment(
     loader=FileSystemLoader(searchpath='./resources/'),
@@ -115,7 +116,7 @@ def set_project(parent, name='root'):
             parent=parent,
             uuid=str(uuid)
         )
-    )
+    )['spec']
     print(
         '[projects:{project}] setting up... '.format(project=name),
         end=''
@@ -146,6 +147,40 @@ AND labels.uuid:* AND projectId:{name}-*'.format(parent=parent, name=name)
         return None
     print('the project is already up-to-date.')
     return result_projects['projects'][0]
+
+def enable_service(name):
+    print(name)
+    return None
+
+def set_service(project):
+    """
+    Enable a list of services for a project, if they are not already enabled.
+    Can either enable or leave it as it is.
+
+    Args:
+        project: string, the name of the projects in
+            the form projects/{projectNumber}
+        services: list(string), the list of services to be enabled.
+
+    Returns:
+        list, the complete list of enabled services in the project.
+    """
+    # load the service list
+    services = safe_load(
+        resources.get_template('project.yaml.j2').render(
+            name='xxx',
+            parent='xxx',
+            uuid='xxx'
+        )
+    )['metadata']['services']
+    print('[services] setting up... ', end='')
+    enabled_services = service_api.list(parent=project, filter='state:ENABLED').execute()
+    service_list = [ service['config']['name'] for service in enabled_services['services'] ]
+    missing_services = list(set(services) - set(service_list))
+    for service in missing_services:
+            print('enabling {name}... '.format(name=service), end='')
+            enable_service(name=service)        
+    return service_list
 
 def create_workload_identity(parent, body, name, timeout=60):
     """
@@ -411,6 +446,8 @@ print('Organization name: ' + org_name)
 
 root_project = set_project(parent=parent)
 print(root_project)
+enabled_services = set_service(project=root_project['name'])
+print(enabled_services)
 wrk_id = set_workload_identity(project=root_project['name'])
 print(wrk_id)
 provider = set_identity_provider(
@@ -421,3 +458,4 @@ print(provider)
 # Close all connections
 cloud_api.close()
 iam_api.close()
+service_api.close()

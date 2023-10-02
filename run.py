@@ -37,7 +37,7 @@ scopes = ['https://www.googleapis.com/auth/cloud-platform']
 cred = default(scopes=scopes)[0].with_quota_project(None)
 cloud_api = build('cloudresourcemanager', 'v3', credentials=cred)
 iam_api = build('iam', 'v1', credentials=cred).projects().locations()
-service_api = build('serviceusage', 'v1', credentials=cred).services()
+service_api = build('serviceusage', 'v1', credentials=cred)
 ## global organization setup data from the jinja template.
 resources = Environment(
     loader=FileSystemLoader(searchpath='./resources/'),
@@ -148,9 +148,54 @@ AND labels.uuid:* AND projectId:{name}-*'.format(parent=parent, name=name)
     print('the project is already up-to-date.')
     return result_projects['projects'][0]
 
-def enable_service(name):
-    print(name)
-    return None
+def enable_service(name, timeout=60):
+    """
+    Enable a service in a project with google API call.
+
+    Args:
+        name: string, the name of the service in the format of 'projects/123/services/serviceusage.googleapis.com'.
+        timeout: int, the timeout before service enabling fails, in seconds.
+            defaults to 60 seconds.
+
+    Returns:
+        dict, the service enabled.
+
+    Raises:
+        RuntimeError: Raises an exception if the API call does not return a
+            successful response.
+    """
+    # the period is the number, in seconds, between two consecutive checks
+    period = 5
+    # error message if creation status times out
+    status_timeout = 'timeout before service enabling status is available.'
+    # error message if creation completion times out
+    completion_timeout = 'timeout before service enabling status is done.'
+    enable_request = service_api.services().enable(name=name)
+    operation = enable_request.execute()
+    operation_request = service_api.operations().get(name=operation['name'])
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    operation = operation_request.execute()
+    while not 'done' in operation:
+        if time_elapsed > timeout % period :
+            raise RuntimeError(status_timeout)
+        time_elapsed += 1
+        print('waiting for service enabling status... ', end='')
+        sleep(period)
+        operation = operation_request.execute()
+
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while operation['done'] is False:
+        if time_elapsed > timeout % period :
+            raise RuntimeError(completion_timeout)
+        time_elapsed += 1
+        print('waiting for service enabling to be done... ', end='')
+        sleep(period)
+        operation = operation_request.execute()
+        print(operation['done'])
+    print(operation['done'])
+    return operation['response']
 
 def set_service(project):
     """
@@ -173,13 +218,15 @@ def set_service(project):
             uuid='xxx'
         )
     )['metadata']['services']
-    print('[services] setting up... ', end='')
-    enabled_services = service_api.list(parent=project, filter='state:ENABLED').execute()
+    print('[services] enabling... ', end='')
+    enabled_services = service_api.services().list(parent=project, filter='state:ENABLED').execute()
     service_list = [ service['config']['name'] for service in enabled_services['services'] ]
     missing_services = list(set(services) - set(service_list))
     for service in missing_services:
             print('enabling {name}... '.format(name=service), end='')
-            enable_service(name=service)        
+            enable_service(name='{project}/services/{name}'.format(project=project, name=service))
+    print('services succesfully enabled.')
+    service_list.extend(missing_services)
     return service_list
 
 def create_workload_identity(parent, body, name, timeout=60):

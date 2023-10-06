@@ -37,6 +37,7 @@ scopes = ['https://www.googleapis.com/auth/cloud-platform']
 cred = default(scopes=scopes)[0].with_quota_project(None)
 cloud_api = build('cloudresourcemanager', 'v3', credentials=cred)
 iam_api = build('iam', 'v1', credentials=cred).projects().locations()
+account_api = build('iam', 'v1', credentials=cred).projects().serviceAccounts()
 service_api = build('serviceusage', 'v1', credentials=cred)
 ## global organization setup data from the jinja template.
 resources = Environment(
@@ -409,7 +410,7 @@ def create_identity_provider(parent, body, name, timeout=60):
     Create a workload identity provider with google API call.
 
     Args:
-        parent: string, the workload identity provider where the provider resides. In
+        parent: string, the workload identity pools where the provider resides. In
             the form projects/{projectNumber}/locations/global/workloadIdentityPools/{name}.
         body: dict, the provider to be created.
         name: string, the workload identity provider ID that will be part of the
@@ -423,7 +424,99 @@ def create_identity_provider(parent, body, name, timeout=60):
     Raises:
         Exception: Raises an exception if the API call fails.
     """
-    return {}
+    # the period is the number, in seconds, between two consecutive checks
+    period = 5
+    request = iam_api.workloadIdentityPools().providers().create(
+        parent=parent,
+        body=body,
+        workloadIdentityPoolProviderId=name
+    )
+    try:
+        operation = request.execute()
+    except Exception as err:
+        raise err('Operation create request failed.')
+
+    request = iam_api.workloadIdentityPools().providers().operations().get(
+        name=operation['name']
+    )
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while not 'done' in request.execute():
+        if time_elapsed > timeout % period :
+            raise RuntimeError('timeout before identity provider creation status is available.')
+        time_elapsed += 1
+        print('waiting for identity provider creation status... ', end='')
+        sleep(period)
+
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while request.execute()['done'] is False:
+        if time_elapsed > timeout % period :
+            raise RuntimeError('timeout before identity provider creation is done.')
+        time_elapsed += 1
+        print('waiting for identity provider creation to be done... ', end='')
+        sleep(period)
+
+    # the operations method does not return any error or response data after
+    # completion so you have to call the get method to return the identity
+    # provider data
+    full_name = '{parent}/providers/{name}'.format(
+        parent=parent,
+        name=name
+    )
+    request = iam_api.workloadIdentityPools().providers().get(name=full_name)
+    return request.execute()
+
+def update_identity_provider(name, body, updateMask, timeout=60):
+    """
+    Update a workload identity provider with google API call.
+
+    Args:
+        name: string, the workload identity provider resource name.
+        body: dict, the workload identity provider to be updated.
+        updateMask: string, comma-separated keys that will be updated in the
+            resource.
+        timeout: int, the timeout before the identity provider creation fails,
+            in seconds. defaults to 60 seconds.
+
+    Returns:
+        dict, the workload identity provider updated.
+
+    Raises:
+        RuntimeError: Raises an exception if the API call does not return a
+            successful response.
+    """
+    period = 5
+    request = iam_api.workloadIdentityPools().providers().patch(
+        name=name,
+        body=body,
+        updateMask=updateMask
+    )
+    operation = request.execute()
+    request = iam_api.workloadIdentityPools().providers().operations().get(
+        name=operation['name']
+    )
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while not 'done' in request.execute():
+        if time_elapsed > timeout % period :
+            raise RuntimeError('timeout before identity provider update status is available.')
+        time_elapsed += 1
+        print('waiting for identity provider update status... ', end='')
+        sleep(period)
+
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while request.execute()['done'] is False:
+        if time_elapsed > timeout % period :
+            print('identity provider failed to be updated.', end='')
+            raise RuntimeError('timeout before identity provider update is done.')
+        time_elapsed += 1
+        print('waiting for identity provider update to be done... ', end='')
+        sleep(period)
+
+    request = iam_api.workloadIdentityPools().providers().get(name=name)
+    return request.execute()
 
 def set_identity_provider(workload, terraform_org, name='tfc-oidc'):
     """
@@ -470,9 +563,42 @@ def set_identity_provider(workload, terraform_org, name='tfc-oidc'):
             updateMask.append(key)
     if updateMask != []:
         print('the identity provider will be updated... ', end='')
-        # update provider
+        result_provider = update_identity_provider(name=full_name, body=body, updateMask=','.join(updateMask))
+        print('identity provider successfully updated.')
+        return result_provider
     print('identity provider is already up-to-date.')
     return result_provider
+
+def set_service_account(projectId, name='builder'):
+    """
+    Set a workload identity provider. Can either be create, update or leave it
+    as it is.
+
+    Args:
+        workload: string, the name of the workload identity provider resource.
+        terraform_org: string, the name of the Terraform Cloud organization
+            that will be used to provide identities for the Google Cloud
+            organization.
+        name: string, the name of the provider for the workload.
+
+    Returns:
+        dict, the result workload identity provider.
+    """
+    # The name of the provider resource in Google Cloud fashion
+    full_name = 'projects/{projectId}/serviceAccounts/{name}@{projectId}.iam.gserviceaccount.com'.format(projectId=projectId, name=name)
+    # Declare the resource provider
+    body = safe_load(resources.get_template('account.yaml.j2').render(name=name))
+    print(
+        '[serviceAccounts:{name}] setting up... '.format(name=name),
+        end=''
+    )
+    # Look for an already existing provider
+    request = account_api.get(name=full_name)
+    try:
+        result_account = request.execute()
+    except:
+        print('the service account will be created... ', end='')
+    return result_account
 
 # load the environment from setup.yaml
 with open('setup.yaml', 'r') as f:
@@ -502,7 +628,10 @@ provider = set_identity_provider(
     terraform_org=setup['terraform']['organization']
 )
 print(provider)
+service_account = set_service_account(projectId=root_project['projectId'])
+print(service_account)
 # Close all connections
 cloud_api.close()
 iam_api.close()
 service_api.close()
+account_api.close()

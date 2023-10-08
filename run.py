@@ -557,6 +557,7 @@ def set_identity_provider(workload, terraform_org, name='tfc-oidc'):
         print('identity provider successfully created.')
         return result_provider
     # compare the workload identity pool declared and the one existing
+    # TODO: better comparison with deepdiff pypi package
     updateMask = []
     for key in set(body.keys()).intersection(result_provider.keys()):
         if body[key] != result_provider[key]:
@@ -569,24 +570,80 @@ def set_identity_provider(workload, terraform_org, name='tfc-oidc'):
     print('identity provider is already up-to-date.')
     return result_provider
 
+def create_service_account(parent, body, timeout=60):
+    """
+    Create a service account with google API call.
+
+    Args:
+        parent: string, the project where the servcie account resides. In
+            the form projects/{projectId}.
+        body: dict, the service account to be created.
+        timeout: int, the timeout before creation fails, in seconds.
+            defaults to 60 seconds.
+
+    Returns:
+        dict, the service account created.
+
+    Raises:
+        Exception: Raises an exception if the API call fails.
+    """
+    # the period is the number, in seconds, between two consecutive checks
+    period = 5
+    request = account_api.create(
+        name=parent,
+        body=body
+    )
+    try:
+        result_account = request.execute()
+    except Exception as err:
+        raise err('Operation create request failed.')
+
+    return result_account
+
+def update_service_account(name, body, timeout=60):
+    """
+    Update a service account with google API call.
+
+    Args:
+        name: string, the service account resource name.
+        body: dict, the service account to be updated.
+        timeout: int, the timeout before the identity provider creation fails,
+            in seconds. defaults to 60 seconds.
+
+    Returns:
+        dict, the service account updated.
+
+    Raises:
+        RuntimeError: Raises an exception if the API call does not return a
+            successful response.
+    """
+    period = 5
+    request = account_api.patch(
+        name=name,
+        body=body
+    )
+    try:
+        result_account = request.execute()
+    except Exception as err:
+        raise err('Operation create request failed.')
+
+    return request.execute()
+
 def set_service_account(projectId, name='builder'):
     """
-    Set a workload identity provider. Can either be create, update or leave it
+    Set a service account. Can either be create, update or leave it
     as it is.
 
     Args:
-        workload: string, the name of the workload identity provider resource.
-        terraform_org: string, the name of the Terraform Cloud organization
-            that will be used to provide identities for the Google Cloud
-            organization.
-        name: string, the name of the provider for the workload.
+        projectId: string, the ID of the project hosting the service account.
+        name: string, the name of the service account. Defaults to 'builder'.
 
     Returns:
-        dict, the result workload identity provider.
+        dict, the result service account.
     """
-    # The name of the provider resource in Google Cloud fashion
+    # The name of the service account resource in Google Cloud fashion
     full_name = 'projects/{projectId}/serviceAccounts/{name}@{projectId}.iam.gserviceaccount.com'.format(projectId=projectId, name=name)
-    # Declare the resource provider
+    # Declare the service account
     body = safe_load(resources.get_template('account.yaml.j2').render(name=name))
     print(
         '[serviceAccounts:{name}] setting up... '.format(name=name),
@@ -598,7 +655,58 @@ def set_service_account(projectId, name='builder'):
         result_account = request.execute()
     except:
         print('the service account will be created... ', end='')
+        result_account = create_service_account(parent='projects/{projectId}'.format(projectId=projectId), body=body)
+        print('service account successfully created.')
+        return result_account
+    # compare the service account declared and the one existing
+    updateMask = []
+    for key in set(body['serviceAccount'].keys()).intersection(result_account.keys()):
+        if body['serviceAccount'][key] != result_account[key]:
+            updateMask.append(key)
+    if updateMask != []:
+        body.pop('accountId', None)
+        body['updateMask'] = ','.join(updateMask)
+        print('the service account will be updated... ', end='')
+        result_account = update_service_account(name=full_name, body=body)
+        print('service account successfully updated.')
+        return result_account
+    print('service account is already up-to-date.')
     return result_account
+
+def set_folder(parent, name='Workspaces'):
+    """
+    Set a folder. Can either be create, update
+    or leave it as it is.
+
+    Args:
+        parent: string, the name of the organization in
+            the form organizations/{orgId}
+        name: string, the folder display Name. Defaults to 'Workspaces'.
+
+    Returns:
+        dict, the result folder.
+    """
+    # Declare the resource folder
+    body = safe_load(
+        resources.get_template('folder.yaml.j2').render(
+            name=name,
+            parent=parent
+        )
+    )
+    print(
+        '[folders:{name}] setting up... '.format(name=name),
+        end=''
+    )
+    # Look for a folder that already matches the declaration
+    # this is the query to find the folder
+    query = 'displayName={name} AND parent={parent}'.format(parent=parent, name=name)
+    request = cloud_api.folders().search(query=query)
+    try:
+        result_folders = request.execute()
+    except:
+        print('Error searching for the workspace folder.', end='')
+    # If the folder does not exist, create it
+    return result_folders['folders'][0]
 
 # load the environment from setup.yaml
 with open('setup.yaml', 'r') as f:
@@ -630,6 +738,8 @@ provider = set_identity_provider(
 print(provider)
 service_account = set_service_account(projectId=root_project['projectId'])
 print(service_account)
+folder = set_folder(parent=parent)
+print(folder)
 # Close all connections
 cloud_api.close()
 iam_api.close()

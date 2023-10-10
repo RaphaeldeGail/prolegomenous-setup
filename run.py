@@ -45,6 +45,8 @@ resources = Environment(
     autoescape=select_autoescape()
 )
 
+# TODO: handle the case where project or folder exists but are in a DELETED state.
+
 def create_project(body, timeout=60):
     """
     Create a project with google API call.
@@ -673,6 +675,55 @@ def set_service_account(projectId, name='builder'):
     print('service account is already up-to-date.')
     return result_account
 
+def create_folder(body, timeout=60):
+    """
+    Create a folder with google API call.
+
+    Args:
+        body: dict, the folder to be created.
+        timeout: int, the timeout before folder creation fails, in seconds.
+            defaults to 60 seconds.
+
+    Returns:
+        dict, the folder created.
+
+    Raises:
+        RuntimeError: Raises an exception if the API call does not return a
+            successful response.
+    """
+    # the period is the number, in seconds, between two consecutive checks
+    period = 5
+    # error message if creation status times out
+    status_timeout = 'timeout before folder creation status is available.'
+    # error message if creation completion times out
+    completion_timeout = 'timeout before folder creation is done.'
+    create_request = cloud_api.folders().create(body=body)
+    operation = create_request.execute()
+
+    operation_request = cloud_api.operations().get(name=operation['name'])
+
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    operation = operation_request.execute()
+    while not 'done' in operation:
+        if time_elapsed > timeout % period :
+            raise RuntimeError(status_timeout)
+        time_elapsed += 1
+        print('waiting for folder creation status... ', end='')
+        sleep(period)
+        operation = operation_request.execute()
+
+    # this loop will check for updates every 5 seconds during 1 minute.
+    time_elapsed = 0
+    while operation['done'] is False:
+        if time_elapsed > timeout % period :
+            raise RuntimeError(completion_timeout)
+        time_elapsed += 1
+        print('waiting for folder creation to be done... ', end='')
+        sleep(period)
+        operation = operation_request.execute()
+    return operation['response']
+
 def set_folder(parent, name='Workspaces'):
     """
     Set a folder. Can either be create, update
@@ -706,7 +757,53 @@ def set_folder(parent, name='Workspaces'):
     except:
         print('Error searching for the workspace folder.', end='')
     # If the folder does not exist, create it
+    if not 'folders' in result_folders:
+        print('the folder will be created... ', end='')
+        result_folder = create_folder(body=body)
+        print('folder successfully created.')
+        return result_folder
+    print('the folder is already up-to-date.')
     return result_folders['folders'][0]
+
+def create_tag(body, timeout=60):
+    return {}
+
+def set_tag(parent,name='root'):
+    """
+    Set a tag. Can either be create, update
+    or leave it as it is.
+
+    Args:
+        parent: string, the name of the organization in
+            the form organizations/{orgId}
+        name: string, the tag short name. Defaults to 'root'.
+
+    Returns:
+        dict, the result tag.
+    """
+    # Declare the resource tag
+    full_name='{org_id}/{name}'.format(org_id=org_id, name=name)
+    # Declare the resource tag
+    body = safe_load(
+        resources.get_template('tag.yaml.j2').render(
+            name=name,
+            parent=parent
+        )
+    )
+    print(
+        '[tags:{name}] setting up... '.format(name=name),
+        end=''
+    )
+    request = cloud_api.tagKeys().getNamespaced(name=full_name)
+    try:
+        result_tag = request.execute()
+    except:
+        print('the tag key will be created... ', end='')
+        result_tag = create_tag(body=body)
+        print('tag successfully created.')
+        return result_tag
+    print('the tag is already up-to-date.')
+    return result_tag
 
 # load the environment from setup.yaml
 with open('setup.yaml', 'r') as f:
@@ -740,6 +837,8 @@ service_account = set_service_account(projectId=root_project['projectId'])
 print(service_account)
 folder = set_folder(parent=parent)
 print(folder)
+tag = set_tag(parent=parent)
+print(tag)
 # Close all connections
 cloud_api.close()
 iam_api.close()

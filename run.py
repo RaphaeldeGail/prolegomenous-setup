@@ -768,7 +768,13 @@ def set_folder(parent, name='Workspaces'):
 def create_tag(body, timeout=60):
     return {}
 
-def set_tag(parent,name='root'):
+def create_value(body, timeout=60):
+    return {}
+
+def create_binding(body, timeout=60):
+    return {}
+
+def set_tag(parent, project, name='root'):
     """
     Set a tag. Can either be create, update
     or leave it as it is.
@@ -776,6 +782,8 @@ def set_tag(parent,name='root'):
     Args:
         parent: string, the name of the organization in
             the form organizations/{orgId}
+        project: string, the name of the project to bind
+            to the tag
         name: string, the tag short name. Defaults to 'root'.
 
     Returns:
@@ -800,10 +808,35 @@ def set_tag(parent,name='root'):
     except:
         print('the tag key will be created... ', end='')
         result_tag = create_tag(body=body)
-        print('tag successfully created.')
-        return result_tag
-    print('the tag is already up-to-date.')
-    return result_tag
+        print('tag key successfully created... ', end='')
+    print('the tag key is already up-to-date... ', end='')
+    request = cloud_api.tagValues().getNamespaced(name='{name}/true'.format(name=full_name))
+    try:
+        result_value = request.execute()
+    except:
+        print('the tag value will be created... ', end='')
+        result_value = create_value(body=body)
+        print('tag value successfully created... ', end='')
+    print('the tag value is already up-to-date... ', end='')
+    request = cloud_api.tagBindings().list(parent='//cloudresourcemanager.googleapis.com/{name}'.format(name=project))
+    try:
+        result_bindings = request.execute()
+    except:
+        print('Error searching for the tag bindings.', end='')
+    # If the binding does not exist, create it
+    if not 'tagBindings' in result_bindings:
+        print('the binding will be created... ', end='')
+        result_binding = create_binding(body=body)
+        print('binding successfully created.')
+        return result_binding
+    if list(item for item in result_bindings['tagBindings'] if item['tagValue'] == result_value['name']) == []:
+        print('the binding will be created... ', end='')
+        result_binding = create_binding(body=body)
+        print('binding successfully created.')
+        return result_binding        
+    # Else, return the binding data found
+    print('the binding is already up-to-date.')
+    return result_bindings['tagBindings'][0]
 
 # load the environment from setup.yaml
 with open('setup.yaml', 'r') as f:
@@ -837,7 +870,7 @@ service_account = set_service_account(projectId=root_project['projectId'])
 print(service_account)
 folder = set_folder(parent=parent)
 print(folder)
-tag = set_tag(parent=parent)
+tag = set_tag(parent=parent, project=root_project['name'])
 print(tag)
 # Close all connections
 cloud_api.close()

@@ -1,2 +1,5 @@
 .secrets
 setup.yaml
+dist
+__pycache__
+*.egg-info

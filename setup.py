@@ -5,7 +5,7 @@ with open('README.md', 'r') as f:
 
 setup(
         name='psetup',
-        version='0.1.0',
+        version='0.2.0',
         author='Raphaël',
         author_email='r@gmail.com',
         description='Setup tool for Google Cloud organization structure',

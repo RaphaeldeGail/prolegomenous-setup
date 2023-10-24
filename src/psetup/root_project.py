@@ -4,17 +4,17 @@ from time import sleep
 
 class RootProject:
 
-    def __init__(self, parent, executive_group, name):
-        name= self.name
-        self.uuid = randint(1,999999)
+    def __init__(self, parent, executive_group, name, uuid=randint(1,999999)):
+        self.name= name
+        self.uuid = uuid
         self.project = {
             'displayName': name,
             'labels': {
                 'root': 'true',
-                'uuid': str(self.uuid)
+                'uuid': str(uuid)
             },
             'parent': parent,
-            'projectId': '{ name }-{ str(uuid) }'.format(name=name, uuid=self.uuid)
+            'projectId': '{name}-{uuid}'.format(name=name, uuid=str(uuid))
         }
         self.services = [
             'cloudapis.googleapis.com',
@@ -108,36 +108,29 @@ class RootProject:
         Returns:
             dict, the difference between declared and existing project, as a
                 dict. If there is no existing state, returns False.
-
-        Raises:
-            RuntimeError: Raises an exception if the API call does not return a
-                successful response.
         """
         # build the api for resource management
         api = build('cloudresourcemanager', 'v3', credentials=credentials)
         declared = self.project
         # Look for a project that already matches the declaration
         # this is the query to find the project
-        query = 'displayName={name} AND parent={parent} AND labels.root=true \
-AND labels.uuid:* AND projectId:{name}-*'.format(parent=declared['parent'], name=self.name)
+        query = 'displayName={name} AND parent={parent} AND labels.root=true AND labels.uuid:* AND projectId:{name}-*'.format(parent=declared['parent'], name=self.name)
         request = api.projects().search(query=query)
         result_projects = request.execute()
         if not 'projects' in result_projects:
             api.close()
             return False
-        existing = result_projects['projects'][0]
-        diff = {}
-        if declared['projectId'] != existing['projectId']:
-            diff['projectId'] = existing['projectId']
-        if declared['labels']['uuid'] != existing['labels']['uuid']:
-            diff['labels']['uuid'] = existing['labels']['uuid']
-        api.close()
-        return diff
-
+        for p in result_projects['projects']:
+            if p['projectId'] == self.project['projectId']:
+                if p['labels']['uuid'] == self.project['labels']['uuid']:
+                    return {}
+                return { 'labels': p['labels']['uuid'] }
+        return False
 
 def check_project(credentials, parent, executive_group, name='root'):
-    project = RootProject(parent=parent, executive_group=executive_group, name=name)
-
-
-
-    return project().diff(credentials=credentials)
+    project = RootProject(
+        parent=parent,
+        executive_group=executive_group,
+        name=name
+    )
+    return project.diff(credentials=credentials)

@@ -1,20 +1,22 @@
 from random import randint
 from googleapiclient.discovery import build
-from time import sleep
+from psetup import operations
 
 class RootProject:
 
-    def __init__(self, parent, executive_group, name, uuid=randint(1,999999)):
-        self.name= name
+    display_name = 'root'
+
+    def __init__(self, parent, executive_group, uuid):
+        self.name = None
         self.uuid = uuid
         self.project = {
-            'displayName': name,
+            'displayName': self.display_name,
             'labels': {
                 'root': 'true',
                 'uuid': str(uuid)
             },
             'parent': parent,
-            'projectId': '{name}-{uuid}'.format(name=name, uuid=str(uuid))
+            'projectId': '{name}-{uuid}'.format(name=self.display_name, uuid=str(uuid))
         }
         self.services = [
             'cloudapis.googleapis.com',
@@ -46,56 +48,42 @@ class RootProject:
             ]
         }
 
-    def apply(self, credentials, timeout=60):
+    def apply(self, credentials):
         """
         Create a project with google API call.
 
         Args:
             credentials: credential, the user authentification to make a call.
-            timeout: int, the timeout before project creation fails,
-                in seconds. defaults to 60 seconds.
 
         Returns:
             dict, the project resulting from the operation.
-
-        Raises:
-            RuntimeError: Raises an exception if the API call does not return a
-                successful response.
         """
         # build the api for resource management
         api = build('cloudresourcemanager', 'v3', credentials=credentials)
-        # the period is the number, in seconds, between two consecutive checks
-        period = 5
-        # error message if creation status times out
-        status_timeout = 'timeout before project creation status is available.'
-        # error message if creation completion times out
-        completion_timeout = 'timeout before project creation is done.'
         create_request = api.projects().create(body=self.project)
         operation = create_request.execute()
-
-        operation_request = api.operations().get(name=operation['name'])
-
-        # this loop will check for updates every 5 seconds during 1 minute.
-        time_elapsed = 0
-        operation = operation_request.execute()
-        while not 'done' in operation:
-            if time_elapsed > timeout % period :
-                raise RuntimeError(status_timeout)
-            time_elapsed += 1
-            sleep(period)
-            operation = operation_request.execute()
-
-        # this loop will check for updates every 5 seconds during 1 minute.
-        time_elapsed = 0
-        while operation['done'] is False:
-            if time_elapsed > timeout % period :
-                raise RuntimeError(completion_timeout)
-            time_elapsed += 1
-            sleep(period)
-            operation = operation_request.execute()
-
+        project = operations.watch(api=api, name=operation['name'])
         api.close()
-        return operation['response']
+        self.name = project['name']
+        return project
+
+    def update(self, credentials):
+        """
+        Update a project with google API call.
+
+        Args:
+            credentials: credential, the user authentification to make a call.
+
+        Returns:
+            dict, the project resulting from the operation.
+        """
+        # build the api for resource management
+        api = build('cloudresourcemanager', 'v3', credentials=credentials)
+        update_request = api.projects().patch(name=self.name, body=self.project)
+        operation = update_request.execute()
+        project = operations.watch(api=api, name=operation['name'])
+        api.close()
+        return project
 
     def diff(self, credentials):
         """
@@ -114,7 +102,7 @@ class RootProject:
         declared = self.project
         # Look for a project that already matches the declaration
         # this is the query to find the project
-        query = 'displayName={name} AND parent={parent} AND labels.root=true AND labels.uuid:* AND projectId:{name}-*'.format(parent=declared['parent'], name=self.name)
+        query = 'displayName={name} AND parent={parent} AND labels.root=true AND labels.uuid:* AND projectId:{name}-*'.format(parent=declared['parent'], name=self.display_name)
         request = api.projects().search(query=query)
         result_projects = request.execute()
         if not 'projects' in result_projects:
@@ -122,15 +110,40 @@ class RootProject:
             return False
         for p in result_projects['projects']:
             if p['projectId'] == self.project['projectId']:
+                self.name = p['name']
                 if p['labels']['uuid'] == self.project['labels']['uuid']:
                     return {}
                 return { 'labels': p['labels']['uuid'] }
         return False
 
-def check_project(credentials, parent, executive_group, name='root'):
+def check_project(credentials, parent, executive_group, uuid=randint(1,999999)):
+    """
+    Generate the root project and related resources.
+
+    Args:
+        credentials: credential, the user authentification to make a call.
+        parent: string, the name of the organisation hosting the project.
+        executive_group: string, the email address of the group for executives
+            for the organization.
+        uuid: int, a unique uid for the root project. Defaults to a random
+            integer between 1 and 999999.
+
+    Returns:
+        the project data and name.
+    """
     project = RootProject(
         parent=parent,
         executive_group=executive_group,
-        name=name
+        uuid=uuid
     )
-    return project.diff(credentials=credentials)
+    diff = project.diff(credentials=credentials)
+    if diff is False:
+        project.apply(credentials=credentials)
+        print('project created... ', end='')
+        return project.project, project.name
+    if diff != {}:
+        print('project updated... ', end='')
+        project.update(credentials=credentials)
+        return project.project, project.name
+    print('project is up-to-date... ', end='')
+    return project.project, project.name

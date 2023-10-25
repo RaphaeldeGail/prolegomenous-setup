@@ -12,12 +12,10 @@ def main():
     credentials = default(scopes=scopes)[0].with_quota_project(None)
 
     setup = config.from_yaml()
-    print(setup)
+    #print(setup)
     timestamp = time.strftime("%Y-%m-%dT%H-%M", time.localtime())
     print(timestamp)
 
     project = root_project.check_project(credentials=credentials, parent=setup['parent'], executive_group='yo')
 
     print(project)
-
-main()

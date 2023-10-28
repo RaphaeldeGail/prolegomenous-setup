@@ -1,7 +1,7 @@
 def main():
     import time
     from google.auth import default
-    from psetup import config, root_project
+    from psetup import config, root_project, tags
 
     ## the scopes for all google API calls
     scopes = ['https://www.googleapis.com/auth/cloud-platform']
@@ -16,6 +16,9 @@ def main():
     timestamp = time.strftime("%Y-%m-%dT%H-%M", time.localtime())
     print(timestamp)
 
-    project = root_project.check_project(credentials=credentials, parent=setup['parent'], executive_group='yo')
+    #project = root_project.check_project(credentials=credentials, parent=setup['parent'], executive_group='yo')
 
-    print(project)
+    tag = tags.generate_tags(credentials=credentials, parent=setup['parent'])
+    print(tag.data)
+    if tag.clear(credentials=credentials) is None:
+        print('clear')

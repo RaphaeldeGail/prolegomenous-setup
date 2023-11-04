@@ -1,22 +1,23 @@
 from random import randint
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from psetup import operations
 
 class RootProject:
 
     display_name = 'root'
 
-    def __init__(self, parent, executive_group, uuid):
+    def __init__(self, parent, executive_group):
         self.name = None
-        self.uuid = uuid
-        self.project = {
+        self.uuid = randint(1,999999)
+        self.data = {
             'displayName': self.display_name,
             'labels': {
                 'root': 'true',
-                'uuid': str(uuid)
+                'uuid': str(self.uuid)
             },
             'parent': parent,
-            'projectId': '{name}-{uuid}'.format(name=self.display_name, uuid=str(uuid))
+            'projectId': '{name}-{uuid}'.format(name=self.display_name, uuid=str(self.uuid))
         }
         self.services = [
             'cloudapis.googleapis.com',
@@ -40,15 +41,17 @@ class RootProject:
             'dns.googleapis.com'
         ]
         self.iam_bindings = {
-            'members': [
-                {
-                    'group': executive_group,
-                    'role': 'roles/owner'
-                }
-            ]
+            'policy': {
+                'bindings': [
+                    {
+                        'members': ['group:{0}'.format(executive_group)],
+                        'role': 'roles/owner'
+                    }
+                ]
+            }
         }
 
-    def apply(self, credentials):
+    def create(self, credentials):
         """
         Create a project with google API call.
 
@@ -59,11 +62,10 @@ class RootProject:
             dict, the project resulting from the operation.
         """
         # build the api for resource management
-        api = build('cloudresourcemanager', 'v3', credentials=credentials)
-        create_request = api.projects().create(body=self.project)
-        operation = create_request.execute()
-        project = operations.watch(api=api, name=operation['name'])
-        api.close()
+        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
+            create_request = api.projects().create(body=self.data)
+            operation = create_request.execute()
+            project = operations.watch(api=api, name=operation['name'])
         self.name = project['name']
         return project
 
@@ -78,11 +80,10 @@ class RootProject:
             dict, the project resulting from the operation.
         """
         # build the api for resource management
-        api = build('cloudresourcemanager', 'v3', credentials=credentials)
-        update_request = api.projects().patch(name=self.name, body=self.project)
-        operation = update_request.execute()
-        project = operations.watch(api=api, name=operation['name'])
-        api.close()
+        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
+            update_request = api.projects().patch(name=self.name, body=self.data)
+            operation = update_request.execute()
+            project = operations.watch(api=api, name=operation['name'])
         return project
 
     def diff(self, credentials):
@@ -97,26 +98,58 @@ class RootProject:
             dict, the difference between declared and existing project, as a
                 dict. If there is no existing state, returns False.
         """
-        # build the api for resource management
-        api = build('cloudresourcemanager', 'v3', credentials=credentials)
-        declared = self.project
-        # Look for a project that already matches the declaration
         # this is the query to find the project
-        query = 'displayName={name} AND parent={parent} AND labels.root=true AND labels.uuid:* AND projectId:{name}-*'.format(parent=declared['parent'], name=self.display_name)
-        request = api.projects().search(query=query)
-        result_projects = request.execute()
-        if not 'projects' in result_projects:
-            api.close()
-            return False
-        for p in result_projects['projects']:
-            if p['projectId'] == self.project['projectId']:
-                self.name = p['name']
-                if p['labels']['uuid'] == self.project['labels']['uuid']:
-                    return {}
-                return { 'labels': p['labels']['uuid'] }
-        return False
+        query = 'parent={0} AND labels.root=true AND state=ACTIVE'.format(self.data['parent'])
+        #' AND displayName={0}'.format(self.display_name),
+        #' AND labels.uuid:*',
+        #' AND projectId:{0}-*'.format(self.display_name)
+        # build the api for resource management
+        p_list = []
+        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
+            # Look for a project that already matches the declaration
+            request = api.projects().search(query=query)
+            while request is not None:
+                result_projects = request.execute()
+                if 'projects' in result_projects:
+                    for p in result_projects['projects']:
+                        p_list.append(p)
+                request = api.projects().search_next(request, result_projects)
+        if p_list == []:
+            return None
+        if len(p_list) == 1:
+            self.name = p_list[0]['name']
+            self.uuid = p_list[0]['projectId']
+            self.data['displayName'] = p_list[0]['displayName']
+            self.data['labels'] = p_list[0]['displayName']
+            self.data['projectId'] = p_list[0]['projectId']
+            return p_list[0]
+        if len(p_list) > 1:
+            print('clear')  
+            return None
 
-def check_project(credentials, parent, executive_group, uuid=randint(1,999999)):
+    def access_control(self, credentials):
+        """
+        Apply IAM policy to the project.
+
+        Args:
+            credentials: credential, the user authentification to make a call.
+
+        Returns:
+            dict, the IAM policy applied.
+
+        Raises:
+            HttpError, Raises an exception if the API call does not return a
+                successful HTTP response.
+        """
+        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
+            request = api.projects().setIamPolicy(resource=self.name, body=self.iam_bindings)
+            try:
+                result_policy = request.execute()
+            except HttpError as e:
+                raise e
+        return result_policy
+
+def generate_project(credentials, parent, executive_group):
     """
     Generate the root project and related resources.
 
@@ -129,21 +162,16 @@ def check_project(credentials, parent, executive_group, uuid=randint(1,999999)):
             integer between 1 and 999999.
 
     Returns:
-        the project data and name.
+        RootProject, the project created.
     """
     project = RootProject(
         parent=parent,
-        executive_group=executive_group,
-        uuid=uuid
+        executive_group=executive_group
     )
     diff = project.diff(credentials=credentials)
-    if diff is False:
+    if diff is None:
         project.apply(credentials=credentials)
         print('project created... ', end='')
-        return project.project, project.name
-    if diff != {}:
-        print('project updated... ', end='')
-        project.update(credentials=credentials)
-        return project.project, project.name
+    project.access_control(credentials=credentials)
     print('project is up-to-date... ', end='')
-    return project.project, project.name
+    return project

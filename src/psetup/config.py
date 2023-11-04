@@ -43,4 +43,4 @@ def from_yaml():
     ## the organization name as string 'organizations/{org_id}'
     parent = 'organizations/{org_id}'.format(org_id=org_id)
 
-    return { 'org_id': org_id, 'parent': parent }
+    return { 'org_id': org_id, 'parent': parent, 'executive_group': setup['google']['groups']['executive_group'] }

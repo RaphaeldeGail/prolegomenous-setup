@@ -16,9 +16,7 @@ def main():
     timestamp = time.strftime("%Y-%m-%dT%H-%M", time.localtime())
     print(timestamp)
 
-    #project = root_project.check_project(credentials=credentials, parent=setup['parent'], executive_group='yo')
-
-    tag = tags.generate_tags(credentials=credentials, parent=setup['parent'])
+    tag = tags.generate_root_tag(credentials=credentials, parent=setup['parent'])
     print(tag.data)
-    if tag.clear(credentials=credentials) is None:
-        print('clear')
+    project = root_project.generate_project(credentials=credentials, parent=setup['parent'], executive_group=setup['executive_group'])
+    print(project.data)

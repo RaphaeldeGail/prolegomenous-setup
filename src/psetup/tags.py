@@ -246,11 +246,62 @@ class RootTagValue:
     def bind(self, credentials, project):
         """
         Bind the tag value to a project.
+
+        Args:
+            credentials: credential, the user authentification to make a call.
+            project: string, the full resource name of the project. In of form:
+                projects/123
+
+        Returns:
+            dict, the tagBinding created.
+
+        Raises:
+            HttpError, Raises an exception if the API call does not return a
+                successful HTTP response.
         """
-        return None
+        body = {
+            'parent': '//cloudresourcemanager.googleapis.com/{0}'.format(project),
+            'tagValue': self.name
+        }
+        # build the api for resource management
+        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
+            request = api.tagBindings().create(body=body)        
+            try:
+                operation = request.execute()
+            except HttpError as e:
+                raise e
+            if ( not 'name' in operation ) and ( 'done' in operation ):
+                return operation['response']
+            tag_binding = operations.watch(api=api, name=operation['name'])
+        return tag_binding
+
+    def is_bound(self, credentials, project):
+        """
+        Indicate if the tag value is bound or not to a project.
+
+        Args:
+            credentials: credential, the user authentification to make a call.
+            project: string, the full resource name of the project. In of form:
+                projects/123
+
+        Returns:
+            bool, True if the project is bound to the tag value. False
+                otherwise.
+        """
+        # build the api for resource management
+        bindings = []
+        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
+            request = api.tagBindings().list(parent='//cloudresourcemanager.googleapis.com/{0}'.format(project))
+            while request is not None:
+                results = request.execute()
+                if 'tagBindings' in results:
+                    bindings.extend([ b['tagValue'] for b in results['tagBindings'] ])
+                request = api.tagBindings().list_next(request, results)
+        if self.name in bindings:
+            return True
+        return False
 
 def generate_root_tag(credentials, parent):
-    print(parent)
     root_key = RootTagKey(parent=parent)
     diff = root_key.diff(credentials=credentials)
     if diff is None:
@@ -267,4 +318,5 @@ def generate_root_tag(credentials, parent):
     elif diff != {}:
         true_value.update(credentials=credentials)
         print('tag value updated... ', end='')
+    print('tag value is up-to-date.')
     return true_value

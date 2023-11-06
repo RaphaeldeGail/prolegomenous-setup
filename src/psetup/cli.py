@@ -16,7 +16,11 @@ def main():
     timestamp = time.strftime("%Y-%m-%dT%H-%M", time.localtime())
     print(timestamp)
 
-    tag = tags.generate_root_tag(credentials=credentials, parent=setup['parent'])
-    print(tag.data)
+    print('generating project... ', end='')
     project = root_project.generate_project(credentials=credentials, parent=setup['parent'], executive_group=setup['executive_group'])
-    print(project.data)
+    print('generating tag... ', end='')
+    tag = tags.generate_root_tag(credentials=credentials, parent=setup['parent'])
+    if not tag.is_bound(credentials=credentials, project=project.name):
+        print('binding')
+        bound = tag.bind(credentials=credentials, project=project.name)
+    print('already bound')

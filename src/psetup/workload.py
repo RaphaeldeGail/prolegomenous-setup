@@ -160,9 +160,13 @@ class TerraformIdentityProvider:
             diff['displayName'] = self.data['displayName']
         if result['attributeCondition'] != self.data['attributeCondition']:
             diff['attributeCondition'] = self.data['attributeCondition']
+        if result['attributeMapping'] != self.data['attributeMapping']:
+            diff['attributeMapping'] = self.data['attributeMapping']
+        if (result['oidc']['issuerUri'] != self.data['oidc']['issuerUri']) or (result['oidc']['allowedAudiences'] != self.data['oidc']['allowedAudiences']):
+            diff['oidc'] = self.data['oidc']
         return diff
 
-def generate_pool(credentials, parent):
+def generate_pool(credentials, parent, terraform_org, org_name):
     pool = WorkloadIdentityPool(parent=parent)
     diff = pool.diff(credentials=credentials)
     if diff is None:
@@ -172,7 +176,7 @@ def generate_pool(credentials, parent):
         pool.update(credentials=credentials, mask=','.join(diff.keys()))
         print('pool updated... ', end='')
     print('pool is up-to-date.')
-    provider = TerraformIdentityProvider(parent=pool.name, terraform_org='yo', org_name='yo')
+    provider = TerraformIdentityProvider(parent=pool.name, terraform_org=terraform_org, org_name=org_name)
     diff = provider.diff(credentials=credentials)
     print(diff)
     return pool

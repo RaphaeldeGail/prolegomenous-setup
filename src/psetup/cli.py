@@ -11,19 +11,19 @@ def main():
     # the with_quota_project(None) method.
     credentials = default(scopes=scopes)[0].with_quota_project(None)
 
-    setup = config.from_yaml()
+    setup = config.from_yaml(credentials=credentials)
     #print(setup)
     timestamp = time.strftime("%Y-%m-%dT%H-%M", time.localtime())
     print(timestamp)
 
     print('generating root project... ', end='')
-    project = root_project.generate_project(credentials=credentials, parent=setup['parent'], executive_group=setup['executive_group'])
+    project = root_project.generate_project(credentials=credentials, parent=setup['parent'], executive_group=setup['google']['groups']['executive_group'])
     print('generating root tag... ', end='')
     tag = tags.generate_root_tag(credentials=credentials, parent=setup['parent'])
     if not tag.is_bound(credentials=credentials, project=project.name):
         print('binding root tag... ', end='')
         bound = tag.bind(credentials=credentials, project=project.name)
     print('generating workload identity pool... ', end='')
-    pool = workload.generate_pool(credentials=credentials, parent=project.name)
+    pool = workload.generate_pool(credentials=credentials, parent=project.name, terraform_org=setup['terraform']['organization'], org_name=setup['google']['org_name'])
     print(pool.data)
     

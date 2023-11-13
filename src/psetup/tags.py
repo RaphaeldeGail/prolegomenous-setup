@@ -43,7 +43,7 @@ class TagKey:
                 operation = create_request.execute()
             except HttpError as e:
                 raise e
-            tag_key = operations.watch(api=api, name=operation['name'])
+            tag_key = operations.watch(api=api, operation=operation)
         self.name = tag_key['name']
         return tag_key
     
@@ -70,7 +70,7 @@ class TagKey:
                 raise e
             if ( not 'name' in operation ) and ( 'done' in operation ):
                 return operation['response']
-            tag_key = operations.watch(api=api, name=operation['name'])
+            tag_key = operations.watch(api=api, operation=operation)
         return tag_key
     
     def diff(self, credentials):
@@ -119,7 +119,7 @@ class TagKey:
                 successful HTTP response.
         """
         with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            request = api.tagKeys().setIamPolicy(self.name, self.iam_bindings)
+            request = api.tagKeys().setIamPolicy(resource=self.name, body=self.iam_bindings)
             try:
                 result_policy = request.execute()
             except HttpError as e:
@@ -143,12 +143,16 @@ class WorkspaceTagKey(TagKey):
             description='Name of the workspace',
             short_name='workspace'
         )
-        self.iam_bindings['bindings'] = [
-            {
-                'members': ['serviceAccount:{0}'.format(builder_email)],
-                'role': 'roles/resourcemanager.tagAdmin'
+        self.iam_bindings =  {
+            'policy': {
+                'bindings': [
+                    {
+                        'members': ['serviceAccount:{0}'.format(builder_email)],
+                        'role': 'roles/resourcemanager.tagAdmin'
+                    }
+                ]
             }
-        ]
+        }
     
 class RootTagValue:
 
@@ -182,7 +186,7 @@ class RootTagValue:
                 operation = create_request.execute()
             except HttpError as e:
                 raise e
-            tag_value = operations.watch(api=api, name=operation['name'])
+            tag_value = operations.watch(api=api, operation=operation)
         self.name = tag_value['name']
         return tag_value
 
@@ -209,7 +213,7 @@ class RootTagValue:
                 raise e
             if ( not 'name' in operation ) and ( 'done' in operation ):
                 return operation['response']
-            tag_value = operations.watch(api=api, name=operation['name'])
+            tag_value = operations.watch(api=api, operation=operation)
         return tag_value
 
     def diff(self, credentials):
@@ -272,7 +276,7 @@ class RootTagValue:
                 raise e
             if ( not 'name' in operation ) and ( 'done' in operation ):
                 return operation['response']
-            tag_binding = operations.watch(api=api, name=operation['name'])
+            tag_binding = operations.watch(api=api, operation=operation)
         return tag_binding
 
     def is_bound(self, credentials, project):
@@ -320,3 +324,16 @@ def generate_root_tag(credentials, parent):
         print('tag value updated... ', end='')
     print('tag value is up-to-date.')
     return true_value
+
+def generate_workspace_tag(credentials, parent, builder_email):
+    workspace_key = WorkspaceTagKey(parent=parent, builder_email=builder_email)
+    diff = workspace_key.diff(credentials=credentials)
+    if diff is None:
+        workspace_key.create(credentials=credentials)
+        print('tag key created... ', end='')
+    elif diff != {}:
+        workspace_key.update(credentials=credentials)
+        print('tag key updated... ', end='')
+    workspace_key.access_control(credentials=credentials)
+    print('tag key is up-to-date.')
+    return workspace_key

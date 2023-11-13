@@ -1,7 +1,7 @@
 def main():
     import time
     from google.auth import default
-    from psetup import config, root_project, tags, workload
+    from psetup import config, root_project, tags, workload, service_account, folder
 
     ## the scopes for all google API calls
     scopes = ['https://www.googleapis.com/auth/cloud-platform']
@@ -24,6 +24,10 @@ def main():
         print('binding root tag... ', end='')
         bound = tag.bind(credentials=credentials, project=project.name)
     print('generating workload identity pool... ', end='')
-    pool = workload.generate_pool(credentials=credentials, parent=project.name, terraform_org=setup['terraform']['organization'], org_name=setup['google']['org_name'])
-    print(pool.data)
-    
+    pool = workload.generate_provider(credentials=credentials, parent=project.name, terraform_org=setup['terraform']['organization'], org_name=setup['google']['org_name'])
+    print('generating service account... ', end='')
+    service_account = service_account.generate_service_account(credentials=credentials, parent=project.data['projectId'], poolId=pool.name, wrkId=setup['terraform']['workspace_project'], executive_group=setup['google']['groups']['executive_group'])
+    print('generating workspace tag... ', end='')
+    tag = tags.generate_workspace_tag(credentials=credentials, parent=setup['parent'], builder_email=service_account.name.split('/serviceAccounts/')[1])
+    print('generating workspace folder... ', end='')
+    folder = folder.generate_folder(credentials=credentials, parent=setup['parent'], executive_group=setup['google']['groups']['executive_group'], builder_email=service_account.name.split('/serviceAccounts/')[1])

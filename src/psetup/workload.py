@@ -2,6 +2,13 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from psetup import operations
 
+pool_description = '''This workload identity pool contains identity providers
+that are able to work at the root level of the Google organization.'''
+
+provider_description = ''''This provider will authorize users from the
+Terraform Cloud organization to identify on the Google Cloud organization
+in order to work at the root level of the Google organization.'''
+
 class WorkloadIdentityPool:
 
     poolId = 'organization-identity-pool'
@@ -10,7 +17,7 @@ class WorkloadIdentityPool:
         self.name = '{0}/locations/global/workloadIdentityPools/{1}'.format(parent, self.poolId)
         self.parent = parent
         self.data = {
-            'description': 'This pool provides identities with organization scopes.',
+            'description': pool_description.replace('\n', ' '),
             'disabled': 'False',
             'displayName': self.poolId.replace('-', ' ').title()
         }
@@ -24,6 +31,10 @@ class WorkloadIdentityPool:
 
         Returns:
             dict, the pool resulting from the operation.
+
+        Raises:
+            HttpError, Raises an exception if the API call does not return a
+                successful HTTP response.
         """
         # build the api for iam
         with build('iam', 'v1', credentials=credentials).projects().locations().workloadIdentityPools() as api:
@@ -36,8 +47,9 @@ class WorkloadIdentityPool:
                 operation = request.execute()
             except HttpError as e:
                 raise e
-            pool = operations.watch(api=api, name=operation['name'])
-        self.name = pool['name']
+            if not ( 'response' in operation ) and not ( 'name' in operation ):
+                raise RuntimeError('no response nor name in the operation received: {0}'.format(str(operation)))
+            pool = operations.watch(api=api, operation=operation)
         return pool
 
     def update(self, credentials, mask):
@@ -62,9 +74,9 @@ class WorkloadIdentityPool:
                 operation = request.execute()
             except HttpError as e:
                 raise e
-            if ( not 'name' in operation ) and ( 'done' in operation ):
-                return operation['response']
-            pool = operations.watch(api=api, name=operation['name'])
+            if not ( 'response' in operation ) and not ( 'name' in operation ):
+                raise RuntimeError('no response nor name in the operation received: {0}'.format(str(operation)))
+            pool = operations.watch(api=api, operation=operation)
         return pool
 
     def diff(self, credentials):
@@ -119,7 +131,7 @@ class TerraformIdentityProvider:
                 'attribute.terraform_workspace_name': 'assertion.terraform_workspace_name',
                 'google.subject': 'assertion.sub'
             },
-            'description': 'Terraform Cloud identity provider.',
+            'description': provider_description.replace('\n', ' '),
             'disabled': False,
             'displayName': 'Terraform Cloud OIDC Provider',
             'oidc': {
@@ -129,6 +141,64 @@ class TerraformIdentityProvider:
                 'issuerUri': 'https://app.terraform.io'
             }
         }
+
+    def create(self, credentials):
+        """
+        Create a workload identity provider with google API call.
+
+        Args:
+            credentials: credential, the user authentification to make a call.
+
+        Returns:
+            dict, the provider resulting from the operation.
+
+        Raises:
+            HttpError, Raises an exception if the API call does not return a
+                successful HTTP response.
+        """
+        # build the api for iam
+        with build('iam', 'v1', credentials=credentials).projects().locations().workloadIdentityPools().providers() as api:
+            request = api.create(
+                parent=self.parent,
+                body=self.data,
+                workloadIdentityPoolProviderId=self.providerId
+            )
+            try:
+                operation = request.execute()
+            except HttpError as e:
+                raise e
+            if not ( 'response' in operation ) and not ( 'name' in operation ):
+                raise RuntimeError('no response nor name in the operation received: {0}'.format(str(operation)))
+            provider = operations.watch(api=api, operation=operation)
+        return provider
+    
+    def update(self, credentials, mask):
+        """
+        Update a workload identity provider with google API call.
+
+        Args:
+            credentials: credential, the user authentification to make a call.
+            mask: string, a comma-separated list of fields to update.
+
+        Returns:
+            dict, the provider resulting from the operation.
+        
+        Raises:
+            HttpError, Raises an exception if the API call does not return a
+                successful HTTP response.
+        """
+        # build the api for resource management
+        with build('iam', 'v1', credentials=credentials).projects().locations().workloadIdentityPools().providers() as api:
+            request = api.patch(name=self.name, body=self.data, updateMask=mask)
+            try:
+                operation = request.execute()
+            except HttpError as e:
+                raise e
+            print(operation)
+            if not ( 'response' in operation ) and not ( 'name' in operation ):
+                raise RuntimeError('no response nor name in the operation received: {0}'.format(str(operation)))
+            provider = operations.watch(api=api, operation=operation)
+        return provider
 
     def diff(self, credentials):
         """
@@ -166,7 +236,7 @@ class TerraformIdentityProvider:
             diff['oidc'] = self.data['oidc']
         return diff
 
-def generate_pool(credentials, parent, terraform_org, org_name):
+def generate_provider(credentials, parent, terraform_org, org_name):
     pool = WorkloadIdentityPool(parent=parent)
     diff = pool.diff(credentials=credentials)
     if diff is None:
@@ -175,8 +245,13 @@ def generate_pool(credentials, parent, terraform_org, org_name):
     elif diff != {}:
         pool.update(credentials=credentials, mask=','.join(diff.keys()))
         print('pool updated... ', end='')
-    print('pool is up-to-date.')
     provider = TerraformIdentityProvider(parent=pool.name, terraform_org=terraform_org, org_name=org_name)
     diff = provider.diff(credentials=credentials)
-    print(diff)
+    if diff is None:
+        provider.create(credentials=credentials)
+        print('provider created... ', end='')
+    elif diff != {}:
+        provider.update(credentials=credentials, mask=','.join(diff.keys()))
+        print('provider updated... ', end='')
+    print('provider is up-to-date.')
     return pool

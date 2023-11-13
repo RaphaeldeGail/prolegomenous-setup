@@ -65,7 +65,7 @@ class RootProject:
         with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
             create_request = api.projects().create(body=self.data)
             operation = create_request.execute()
-            project = operations.watch(api=api, name=operation['name'])
+            project = operations.watch(api=api, operation=operation)
         self.name = project['name']
         return project
 
@@ -154,7 +154,7 @@ class RootProject:
                 except HttpError as e:
                     raise e
                 if not ( 'done', True ) in operation.items():
-                    result.append(operations.watch(api=api, name=operation['name'])['service']['config']['name'])
+                    result.append(operations.watch(api=api, operation=operation)['service']['config']['name'])
                     continue
                 result.append(operation['response']['service']['config']['name'])
         return result

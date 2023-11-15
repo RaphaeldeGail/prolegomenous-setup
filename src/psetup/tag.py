@@ -1,6 +1,6 @@
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from psetup import operations
+from psetup import operation
 
 root_tag_key_description = '''Use this tag to target a project that will be
 used as a root project for the organization. Definition of a root project can
@@ -38,14 +38,16 @@ class TagKey:
         """
         # build the api for resource management
         with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            create_request = api.tagKeys().create(body=self.data)
+            request = api.tagKeys().create(body=self.data)
             try:
-                operation = create_request.execute()
+                initial = request.execute()
             except HttpError as e:
                 raise e
-            tag_key = operations.watch(api=api, operation=operation)
-        self.name = tag_key['name']
-        return tag_key
+            result = operation.watch(api=api, operation=initial)
+        if not 'response' in result:
+            raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
+        self.name = result['response']['name']
+        return result['response']
     
     def update(self, credentials):
         """
@@ -65,13 +67,11 @@ class TagKey:
         with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
             update_request = api.tagKeys().patch(name=self.name, body=self.data)
             try:
-                operation = update_request.execute()
+                initial = update_request.execute()
             except HttpError as e:
                 raise e
-            if ( not 'name' in operation ) and ( 'done' in operation ):
-                return operation['response']
-            tag_key = operations.watch(api=api, operation=operation)
-        return tag_key
+            result = operation.watch(api=api, operation=initial)
+        return result['response']
     
     def diff(self, credentials):
         """
@@ -132,7 +132,7 @@ class RootTagKey(TagKey):
         super().__init__(
             parent=parent,
             description=root_tag_key_description.replace('\n', ' '),
-            short_name='root'
+            short_name='iroot'
         )
 
 class WorkspaceTagKey(TagKey):
@@ -183,12 +183,14 @@ class RootTagValue:
         with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
             create_request = api.tagValues().create(body=self.data)
             try:
-                operation = create_request.execute()
+                initial = create_request.execute()
             except HttpError as e:
                 raise e
-            tag_value = operations.watch(api=api, operation=operation)
-        self.name = tag_value['name']
-        return tag_value
+            result = operation.watch(api=api, operation=initial)
+        if not 'response' in result:
+            raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
+        self.name = result['response']['name']
+        return result['response']
 
     def update(self, credentials):
         """
@@ -208,13 +210,11 @@ class RootTagValue:
         with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
             update_request = api.tagValues().patch(name=self.name, body=self.data)
             try:
-                operation = update_request.execute()
+                initial = update_request.execute()
             except HttpError as e:
                 raise e
-            if ( not 'name' in operation ) and ( 'done' in operation ):
-                return operation['response']
-            tag_value = operations.watch(api=api, operation=operation)
-        return tag_value
+            result = operation.watch(api=api, operation=initial)
+        return result['response']
 
     def diff(self, credentials):
         """
@@ -271,13 +271,11 @@ class RootTagValue:
         with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
             request = api.tagBindings().create(body=body)        
             try:
-                operation = request.execute()
+                initial = request.execute()
             except HttpError as e:
                 raise e
-            if ( not 'name' in operation ) and ( 'done' in operation ):
-                return operation['response']
-            tag_binding = operations.watch(api=api, operation=operation)
-        return tag_binding
+            result = operation.watch(api=api, operation=initial)
+        return result['response']
 
     def is_bound(self, credentials, project):
         """

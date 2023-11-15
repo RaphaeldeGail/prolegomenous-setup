@@ -1,6 +1,6 @@
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from psetup import operations
+from psetup import operation
 
 class WorkspaceFolder:
 
@@ -40,10 +40,12 @@ class WorkspaceFolder:
         # build the api for resource management
         with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
             request = api.folders().create(body=self.data)
-            operation = request.execute()
-            folder = operations.watch(api=api, operation=operation)
-        self.name = folder['name']
-        return folder
+            initial = request.execute()
+            result = operation.watch(api=api, operation=initial)
+        if not 'response' in result:
+            raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
+        self.name = result['response']['name']
+        return result['response']
 
     def diff(self, credentials):
         """

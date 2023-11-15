@@ -1,7 +1,7 @@
 from random import randint
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from psetup import operations
+from psetup import operation
 
 class RootProject:
 
@@ -64,10 +64,12 @@ class RootProject:
         # build the api for resource management
         with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
             create_request = api.projects().create(body=self.data)
-            operation = create_request.execute()
-            project = operations.watch(api=api, operation=operation)
-        self.name = project['name']
-        return project
+            initial = create_request.execute()
+            result = operation.watch(api=api, operation=initial)
+        if not 'response' in result:
+            raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
+        self.name = result['response']['name']
+        return result['response']
 
     def diff(self, credentials):
         """
@@ -150,13 +152,13 @@ class RootProject:
             for service in self.services:
                 request = api.services().enable(name='{0}/services/{1}'.format(self.name, service))
                 try:
-                    operation = request.execute()
+                    initial = request.execute()
                 except HttpError as e:
                     raise e
-                if not ( 'done', True ) in operation.items():
-                    result.append(operations.watch(api=api, operation=operation)['service']['config']['name'])
+                if not ( 'done', True ) in initial.items():
+                    result.append(operation.watch(api=api, operation=initial)['response']['service']['config']['name'])
                     continue
-                result.append(operation['response']['service']['config']['name'])
+                result.append(initial['response']['service']['config']['name'])
         return result
 
 def generate_project(credentials, parent, executive_group):

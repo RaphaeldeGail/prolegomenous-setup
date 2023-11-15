@@ -1,6 +1,5 @@
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from psetup import operations
 
 class ServiceAccount:
 

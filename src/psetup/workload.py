@@ -1,6 +1,6 @@
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from psetup import operations
+from psetup import operation
 
 pool_description = '''This workload identity pool contains identity providers
 that are able to work at the root level of the Google organization.'''
@@ -44,13 +44,11 @@ class WorkloadIdentityPool:
                 workloadIdentityPoolId=self.poolId
             )
             try:
-                operation = request.execute()
+                initial = request.execute()
             except HttpError as e:
                 raise e
-            if not ( 'response' in operation ) and not ( 'name' in operation ):
-                raise RuntimeError('no response nor name in the operation received: {0}'.format(str(operation)))
-            pool = operations.watch(api=api, operation=operation)
-        return pool
+            result = operation.watch(api=api, operation=initial)
+        return result['response']
 
     def update(self, credentials, mask):
         """
@@ -71,13 +69,11 @@ class WorkloadIdentityPool:
         with build('iam', 'v1', credentials=credentials).projects().locations().workloadIdentityPools() as api:
             request = api.patch(name=self.name, body=self.data, updateMask=mask)
             try:
-                operation = request.execute()
+                initial = request.execute()
             except HttpError as e:
                 raise e
-            if not ( 'response' in operation ) and not ( 'name' in operation ):
-                raise RuntimeError('no response nor name in the operation received: {0}'.format(str(operation)))
-            pool = operations.watch(api=api, operation=operation)
-        return pool
+            result = operation.watch(api=api, operation=initial)
+        return result['response']
 
     def diff(self, credentials):
         """
@@ -164,13 +160,11 @@ class TerraformIdentityProvider:
                 workloadIdentityPoolProviderId=self.providerId
             )
             try:
-                operation = request.execute()
+                initial = request.execute()
             except HttpError as e:
                 raise e
-            if not ( 'response' in operation ) and not ( 'name' in operation ):
-                raise RuntimeError('no response nor name in the operation received: {0}'.format(str(operation)))
-            provider = operations.watch(api=api, operation=operation)
-        return provider
+            result = operation.watch(api=api, operation=initial)
+        return result['response']
     
     def update(self, credentials, mask):
         """
@@ -191,14 +185,11 @@ class TerraformIdentityProvider:
         with build('iam', 'v1', credentials=credentials).projects().locations().workloadIdentityPools().providers() as api:
             request = api.patch(name=self.name, body=self.data, updateMask=mask)
             try:
-                operation = request.execute()
+                initial = request.execute()
             except HttpError as e:
                 raise e
-            print(operation)
-            if not ( 'response' in operation ) and not ( 'name' in operation ):
-                raise RuntimeError('no response nor name in the operation received: {0}'.format(str(operation)))
-            provider = operations.watch(api=api, operation=operation)
-        return provider
+            result = operation.watch(api=api, operation=initial)
+        return result['response']
 
     def diff(self, credentials):
         """

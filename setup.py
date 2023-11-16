@@ -14,6 +14,7 @@ setup(
         url='https://github.com/RaphaeldeGail',
         packages=find_packages('src'),
         package_dir={'': 'src'},
+        data_files=[('config/psetup', ['default.yaml'])],
         install_requires=[],
         python_requires='>=3.9',
         entry_points={

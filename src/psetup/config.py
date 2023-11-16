@@ -1,7 +1,7 @@
 from yaml import safe_load
-from jinja2 import Environment, select_autoescape, FileSystemLoader
 from schema import Schema, SchemaError
 from googleapiclient.discovery import build
+import sys
 
 def from_yaml(credentials):
     # set global variables
@@ -24,12 +24,6 @@ def from_yaml(credentials):
         }
     })
 
-    ## global organization setup data from the jinja template.
-    resources = Environment(
-        loader=FileSystemLoader(searchpath='./resources/'),
-        autoescape=select_autoescape()
-    )
-
     # load the environment from setup.yaml
     with open('setup.yaml', 'r') as f:
         setup = safe_load(f)
@@ -38,6 +32,9 @@ def from_yaml(credentials):
         config_schema.validate(setup)
     except SchemaError as se:
         raise se
+    
+    with open('{0}/config/psetup/default.yaml'.format(sys.prefix), 'r') as f:
+        config = safe_load(f)
 
     # the organization number
     org_id = setup['google']['organization']
@@ -47,5 +44,6 @@ def from_yaml(credentials):
     with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
         org_name = api.organizations().get(name=parent).execute()['displayName']
     setup['google']['org_name'] = org_name
-
+    setup.update(config)
+    
     return setup

@@ -1,0 +1,60 @@
+---
+root_project:
+  displayName: 'root'
+  labels:
+    root: 'true'
+  services:
+    - 'cloudapis.googleapis.com'
+    - 'cloudbilling.googleapis.com'
+    - 'cloudidentity.googleapis.com'
+    - 'cloudkms.googleapis.com'
+    - 'cloudresourcemanager.googleapis.com'
+    - 'cloudtrace.googleapis.com'
+    - 'datastore.googleapis.com'
+    - 'iam.googleapis.com'
+    - 'iamcredentials.googleapis.com'
+    - 'logging.googleapis.com'
+    - 'servicemanagement.googleapis.com'
+    - 'serviceusage.googleapis.com'
+    - 'storage-api.googleapis.com'
+    - 'storage-component.googleapis.com'
+    - 'storage.googleapis.com'
+    - 'sts.googleapis.com'
+    - 'secretmanager.googleapis.com'
+    - 'billingbudgets.googleapis.com'
+    - 'dns.googleapis.com'
+root_tag:
+  short_name: 'root'
+  description: 'Use this tag to target a project that will be used as a root project for the organization. Definition of a root project can be found at https://github.com/RaphaeldeGail/prolegomenous-setup'
+true_value:
+  short_name: 'true'
+  description: 'This value indicates that the project is a root of the organization. It should be only used for project resources and should be unique among an organization.'
+workspace_tag:
+  short_name: 'workspace'
+  description: 'Name of the workspace'
+organization_pool:
+  id: 'organization-identity-pool'
+  description: 'This workload identity pool contains identity providers that are able to work at the root level of the Google organization.'
+terraform_provider:
+  id: 'tfc-oidc'
+  description: 'This value indicates that the project is a root of the organization. It should be only used for project resources and should be unique among an organization.'
+  displayName: 'Terraform Cloud OIDC Provider'
+  oidc:
+    issuerUri: 'https://app.terraform.io'
+  attributeMapping:
+    attribute.aud: 'assertion.aud'
+    attribute.terraform_full_workspace: 'assertion.terraform_full_workspace'
+    attribute.terraform_organization_id: 'assertion.terraform_organization_id'
+    attribute.terraform_organization_name: 'assertion.terraform_organization_name'
+    attribute.terraform_project_id: 'assertion.terraform_project_id'
+    attribute.terraform_project_name: 'assertion.terraform_project_name'
+    attribute.terraform_run_id: 'assertion.terraform_run_id'
+    attribute.terraform_run_phase: 'assertion.terraform_run_phase'
+    attribute.terraform_workspace_id: 'assertion.terraform_workspace_id'
+    attribute.terraform_workspace_name: 'assertion.terraform_workspace_name'
+    google.subject: 'assertion.sub'
+builder_account:
+  description: 'Service account for building workspaces.'
+  displayName: 'Workspace Builder Service Account'
+workspace_folder:
+  displayName: 'Workspaces'

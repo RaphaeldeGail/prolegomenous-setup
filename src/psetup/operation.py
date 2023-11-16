@@ -11,7 +11,7 @@ def watch(api, operation, period=5, timeout=60):
     """
     Wait for an operation to complete before returning the complettion message.
         A completed operation should contain the item "done: True" in its
-        response.
+        message.
 
     Args:
         api: api, the base Google api with the operations resource.
@@ -64,6 +64,8 @@ def watch(api, operation, period=5, timeout=60):
         sleep(period)
         operation = request.execute()
 
+    # after the operation 'done' is True, there should be either a response or
+    # error entry.
     if 'error' in operation:
         raise RuntimeError('operation ended in error: {0}'.format(str(operation)))
 

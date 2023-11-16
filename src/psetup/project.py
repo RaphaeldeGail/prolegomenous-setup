@@ -5,19 +5,17 @@ from psetup import operation
 
 class RootProject:
 
-    display_name = 'root'
-
-    def __init__(self, parent, executive_group):
+    def __init__(self, setup):
         self.name = None
         self.uuid = randint(1,999999)
         self.data = {
-            'displayName': self.display_name,
+            'displayName': setup['root_project']['displayName'],
             'labels': {
                 'root': 'true',
                 'uuid': str(self.uuid)
             },
-            'parent': parent,
-            'projectId': '{name}-{uuid}'.format(name=self.display_name, uuid=str(self.uuid))
+            'parent': setup['parent'],
+            'projectId': '{name}-{uuid}'.format(name=setup['root_project']['displayName'], uuid=str(self.uuid))
         }
         self.services = [
             'cloudapis.googleapis.com',
@@ -44,7 +42,7 @@ class RootProject:
             'policy': {
                 'bindings': [
                     {
-                        'members': ['group:{0}'.format(executive_group)],
+                        'members': ['group:{0}'.format(setup['google']['groups']['executive_group'])],
                         'role': 'roles/owner'
                     }
                 ]
@@ -161,22 +159,19 @@ class RootProject:
                 result.append(initial['response']['service']['config']['name'])
         return result
 
-def generate_project(credentials, parent, executive_group):
+def generate_project(credentials, setup):
     """
     Generate the root project and related resources.
 
     Args:
         credentials: credential, the user authentification to make a call.
-        parent: string, the name of the organisation hosting the project.
-        executive_group: string, the email address of the group for executives
-            for the organization.
+        setup: dict, the configuration used to build the root structure.
 
     Returns:
         RootProject, the project created.
     """
     project = RootProject(
-        parent=parent,
-        executive_group=executive_group
+        setup=setup
     )
     diff = project.diff(credentials=credentials)
     if diff is None:

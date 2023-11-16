@@ -132,7 +132,7 @@ class RootTagKey(TagKey):
         super().__init__(
             parent=parent,
             description=root_tag_key_description.replace('\n', ' '),
-            short_name='iroot'
+            short_name='root'
         )
 
 class WorkspaceTagKey(TagKey):

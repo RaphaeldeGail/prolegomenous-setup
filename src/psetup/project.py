@@ -9,13 +9,13 @@ class RootProject:
         self.name = None
         self.uuid = randint(1,999999)
         self.data = {
-            'displayName': setup['root_project']['displayName'],
+            'displayName': setup['rootProject']['displayName'],
             'labels': {
                 'root': 'true',
                 'uuid': str(self.uuid)
             },
             'parent': setup['parent'],
-            'projectId': '{name}-{uuid}'.format(name=setup['root_project']['displayName'], uuid=str(self.uuid))
+            'projectId': '{name}-{uuid}'.format(name=setup['rootProject']['displayName'], uuid=str(self.uuid))
         }
         self.services = [
             'cloudapis.googleapis.com',
@@ -67,7 +67,7 @@ class RootProject:
         if not 'response' in result:
             raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
         self.name = result['response']['name']
-        return result['response']
+        return None
 
     def diff(self, credentials):
         """
@@ -129,7 +129,7 @@ class RootProject:
                 result_policy = request.execute()
             except HttpError as e:
                 raise e
-        return result_policy
+        return None
 
     def service_enable(self, credentials):
         """
@@ -157,7 +157,7 @@ class RootProject:
                     result.append(operation.watch(api=api, operation=initial)['response']['service']['config']['name'])
                     continue
                 result.append(initial['response']['service']['config']['name'])
-        return result
+        return None
 
 def generate_project(credentials, setup):
     """

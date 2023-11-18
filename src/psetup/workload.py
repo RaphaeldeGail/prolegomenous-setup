@@ -2,24 +2,15 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from psetup import operation
 
-pool_description = '''This workload identity pool contains identity providers
-that are able to work at the root level of the Google organization.'''
-
-provider_description = ''''This provider will authorize users from the
-Terraform Cloud organization to identify on the Google Cloud organization
-in order to work at the root level of the Google organization.'''
-
 class WorkloadIdentityPool:
 
-    poolId = 'organization-identity-pool'
-
-    def __init__(self, parent):
-        self.name = '{0}/locations/global/workloadIdentityPools/{1}'.format(parent, self.poolId)
-        self.parent = parent
+    def __init__(self, setup, parent):
+        self.name = '{0}/locations/global/workloadIdentityPools/{1}'.format(parent, setup['organizationPool']['id'])
+        self.parent = setup['parent']
         self.data = {
-            'description': pool_description.replace('\n', ' '),
+            'description': setup['organizationPool']['description'],
             'disabled': 'False',
-            'displayName': self.poolId.replace('-', ' ').title()
+            'displayName': setup['organizationPool']['id'].replace('-', ' ').title()
         }
 
     def create(self, credentials):
@@ -41,14 +32,14 @@ class WorkloadIdentityPool:
             request = api.create(
                 parent=self.parent,
                 body=self.data,
-                workloadIdentityPoolId=self.poolId
+                workloadIdentityPoolId=self.name.split('/')[-1]
             )
             try:
                 initial = request.execute()
             except HttpError as e:
                 raise e
             result = operation.watch(api=api, operation=initial)
-        return result['response']
+        return None
 
     def update(self, credentials, mask):
         """
@@ -73,7 +64,7 @@ class WorkloadIdentityPool:
             except HttpError as e:
                 raise e
             result = operation.watch(api=api, operation=initial)
-        return result['response']
+        return None
 
     def diff(self, credentials):
         """
@@ -109,32 +100,20 @@ class TerraformIdentityProvider:
 
     providerId = 'tfc-oidc'
 
-    def __init__(self, parent, terraform_org, org_name):
-        self.name = '{0}/providers/{1}'.format(parent, self.providerId)
+    def __init__(self, setup, parent):
+        self.name = '{0}/providers/{1}'.format(parent, setup['terraformProvider']['id'])
         self.parent = parent
         self.data =  {  
-            'attributeCondition': 'assertion.sub.startsWith("organization:{0}:project:Workspaces")'.format(terraform_org),
-            'attributeMapping': {
-                'attribute.aud': 'assertion.aud',
-                'attribute.terraform_full_workspace': 'assertion.terraform_full_workspace',
-                'attribute.terraform_organization_id': 'assertion.terraform_organization_id',
-                'attribute.terraform_organization_name': 'assertion.terraform_organization_name',
-                'attribute.terraform_project_id': 'assertion.terraform_project_id',
-                'attribute.terraform_project_name': 'assertion.terraform_project_name',
-                'attribute.terraform_run_id': 'assertion.terraform_run_id',
-                'attribute.terraform_run_phase': 'assertion.terraform_run_phase',
-                'attribute.terraform_workspace_id': 'assertion.terraform_workspace_id',
-                'attribute.terraform_workspace_name': 'assertion.terraform_workspace_name',
-                'google.subject': 'assertion.sub'
-            },
-            'description': provider_description.replace('\n', ' '),
+            'attributeCondition': 'assertion.sub.startsWith("organization:{0}:project:Workspaces")'.format(setup['terraform']['organization']),
+            'attributeMapping': setup['terraformProvider']['attributeMapping'],
+            'description': setup['terraformProvider']['description'],
             'disabled': False,
-            'displayName': 'Terraform Cloud OIDC Provider',
+            'displayName': setup['terraformProvider']['displayName'],
             'oidc': {
                 'allowedAudiences': [
-                    'https://tfc.{0}'.format(org_name),
+                    'https://tfc.{0}'.format(setup['google']['org_name']),
                 ],
-                'issuerUri': 'https://app.terraform.io'
+                'issuerUri': setup['terraformProvider']['oidc']['issuerUri']
             }
         }
 
@@ -164,7 +143,7 @@ class TerraformIdentityProvider:
             except HttpError as e:
                 raise e
             result = operation.watch(api=api, operation=initial)
-        return result['response']
+        return None
     
     def update(self, credentials, mask):
         """
@@ -189,7 +168,7 @@ class TerraformIdentityProvider:
             except HttpError as e:
                 raise e
             result = operation.watch(api=api, operation=initial)
-        return result['response']
+        return None
 
     def diff(self, credentials):
         """
@@ -227,8 +206,8 @@ class TerraformIdentityProvider:
             diff['oidc'] = self.data['oidc']
         return diff
 
-def generate_provider(credentials, parent, terraform_org, org_name):
-    pool = WorkloadIdentityPool(parent=parent)
+def generate_provider(credentials, setup, parent):
+    pool = WorkloadIdentityPool(setup=setup, parent=parent)
     diff = pool.diff(credentials=credentials)
     if diff is None:
         pool.create(credentials=credentials)
@@ -236,7 +215,7 @@ def generate_provider(credentials, parent, terraform_org, org_name):
     elif diff != {}:
         pool.update(credentials=credentials, mask=','.join(diff.keys()))
         print('pool updated... ', end='')
-    provider = TerraformIdentityProvider(parent=pool.name, terraform_org=terraform_org, org_name=org_name)
+    provider = TerraformIdentityProvider(setup=setup, parent=pool.name)
     diff = provider.diff(credentials=credentials)
     if diff is None:
         provider.create(credentials=credentials)

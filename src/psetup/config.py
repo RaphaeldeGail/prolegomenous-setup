@@ -2,11 +2,12 @@ from yaml import safe_load
 from schema import Schema, SchemaError
 from googleapiclient.discovery import build
 import sys
+from os import path
 
 def from_yaml(credentials):
     # set global variables
     ## the schema for the setup file in YAML
-    config_schema = Schema({
+    environment_schema = Schema({
         "google": {
             "organization": str,
             "billing_account": str,
@@ -24,26 +25,33 @@ def from_yaml(credentials):
         }
     })
 
+    # default file for configuration of the structure root
+    default = '{0}/config/psetup/default.yaml'.format(sys.prefix)
+
+    if not path.isfile('environment.yaml'):
+        raise RuntimeError('The file "environment.yaml" could not be found.')
     # load the environment from setup.yaml
-    with open('setup.yaml', 'r') as f:
-        setup = safe_load(f)
+    with open('environment.yaml', 'r') as f:
+        environment = safe_load(f)
     # validate the setup YAML against the schema
     try:
-        config_schema.validate(setup)
+        environment_schema.validate(environment)
     except SchemaError as se:
         raise se
-    
-    with open('{0}/config/psetup/default.yaml'.format(sys.prefix), 'r') as f:
+
+    if not path.isfile(default):
+        raise RuntimeError('The file "{0}" could not be found.'.format(default))
+    with open(default, 'r') as f:
         config = safe_load(f)
 
     # the organization number
-    org_id = setup['google']['organization']
+    org_id = environment['google']['organization']
     ## the organization name as string 'organizations/{org_id}'
     parent = 'organizations/{org_id}'.format(org_id=org_id)
-    setup['parent'] = parent
+    environment['parent'] = parent
     with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
         org_name = api.organizations().get(name=parent).execute()['displayName']
-    setup['google']['org_name'] = org_name
-    setup.update(config)
+    environment['google']['org_name'] = org_name
+    environment.update(config)
     
-    return setup
+    return environment

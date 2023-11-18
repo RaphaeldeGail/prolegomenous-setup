@@ -6,22 +6,22 @@ class WorkspaceFolder:
 
     display_name = 'Workspaces'
 
-    def __init__(self, parent, executive_group, builder_email):
+    def __init__(self, setup, builder_email):
         self.name = None
         self.data = {
-            'displayName': self.display_name,
-            'parent': parent,
+            'displayName': setup['workspaceFolder']['displayName'],
+            'parent': setup['parent'],
         }
         self.iam_bindings = {
             'policy': {
                 'bindings': [
                     {
-                        'members': ['group:{0}'.format(executive_group)],
+                        'members': ['group:{0}'.format(setup['google']['groups']['executive_group'])],
                         'role': 'roles/resourcemanager.folderAdmin'
                     },
                     {
                         'members': ['serviceAccount:{0}'.format(builder_email)],
-                        'role': '{0}/roles/workspaceBuilder'.format(parent)
+                        'role': '{0}/roles/{1}'.format(setup['parent'], setup['workspaceFolder']['builderRole'])
                     }
                 ]
             }
@@ -45,7 +45,7 @@ class WorkspaceFolder:
         if not 'response' in result:
             raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
         self.name = result['response']['name']
-        return result['response']
+        return None
 
     def diff(self, credentials):
         """
@@ -103,9 +103,9 @@ class WorkspaceFolder:
                 result = request.execute()
             except HttpError as e:
                 raise e
-        return result
+        return None
 
-def generate_folder(credentials, parent, executive_group, builder_email):
+def generate_folder(credentials, setup, builder_email):
     """
     Generate the root project and related resources.
 
@@ -121,8 +121,7 @@ def generate_folder(credentials, parent, executive_group, builder_email):
         WorkspaceFolder, the project created.
     """
     folder = WorkspaceFolder(
-        parent=parent,
-        executive_group=executive_group,
+        setup=setup,
         builder_email=builder_email
     )
     diff = folder.diff(credentials=credentials)

@@ -17,16 +17,18 @@ def main():
 
     print('generating root project... ', end='')
     root_project = project.generate_project(credentials=credentials, setup=setup)
+    project_name = root_project.name
     print('generating root tag... ', end='')
-    root_tag = tag.generate_root_tag(credentials=credentials, parent=setup['parent'])
-    if not root_tag.is_bound(credentials=credentials, project=root_project.name):
+    root_tag = tag.generate_root_tag(credentials=credentials, setup=setup)
+    if not root_tag.is_bound(credentials=credentials, project=project_name):
         print('binding root tag... ', end='')
-        bound = root_tag.bind(credentials=credentials, project=root_project.name)
+        bound = root_tag.bind(credentials=credentials, project=project_name)
     print('generating workload identity pool... ', end='')
-    pool = workload.generate_provider(credentials=credentials, parent=project.name, terraform_org=setup['terraform']['organization'], org_name=setup['google']['org_name'])
+    pool = workload.generate_provider(credentials=credentials, setup=setup, parent=project_name)
     print('generating service account... ', end='')
-    builder_account = service_account.generate_service_account(credentials=credentials, parent=project.data['projectId'], poolId=pool.name, wrkId=setup['terraform']['workspace_project'], executive_group=setup['google']['groups']['executive_group'])
+    builder_account = service_account.generate_service_account(credentials=credentials, setup=setup, parent=root_project.data['projectId'], poolId=pool.name)
+    builder_email = builder_account.name.split('/serviceAccounts/')[1]
     print('generating workspace tag... ', end='')
-    workspace_tag = tag.generate_workspace_tag(credentials=credentials, parent=setup['parent'], builder_email=builder_account.name.split('/serviceAccounts/')[1])
+    workspace_tag = tag.generate_workspace_tag(credentials=credentials, setup=setup, builder_email=builder_email)
     print('generating workspace folder... ', end='')
-    workspace_folder = folder.generate_folder(credentials=credentials, parent=setup['parent'], executive_group=setup['google']['groups']['executive_group'], builder_email=builder_account.name.split('/serviceAccounts/')[1])
+    workspace_folder = folder.generate_folder(credentials=credentials, setup=setup, builder_email=builder_email)

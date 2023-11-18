@@ -70,6 +70,6 @@ def watch(api, operation, period=5, timeout=60):
         raise RuntimeError('operation ended in error: {0}'.format(str(operation)))
 
     if not 'response' in operation:
-        raise RuntimeError('no response found: {0}'.format(str(operation)))
+        return {}
 
-    return operation
+    return operation['result']

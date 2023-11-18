@@ -3,24 +3,24 @@ from googleapiclient.errors import HttpError
 
 class ServiceAccount:
 
-    def __init__(self, parent, name, poolId, wrkId, executive_group):
-        self.name = 'projects/{projectId}/serviceAccounts/{name}@{projectId}.iam.gserviceaccount.com'.format(projectId=parent, name=name)
+    def __init__(self, setup, parent, poolId):
+        self.name = 'projects/{projectId}/serviceAccounts/{name}@{projectId}.iam.gserviceaccount.com'.format(projectId=parent, name=setup['builderAccount']['name'])
         self.data = { 
-            'description': 'Service account for building workspaces.',
-            'displayName': 'Workspace Builder Service Account'
+            'description': setup['builderAccount']['description'],
+            'displayName': setup['builderAccount']['displayName']
         }
         self.iam_bindings = {
             'policy': {
                 'bindings': [
                     {
                         'members': [
-                            'group:{0}'.format(executive_group),
+                            'group:{0}'.format(setup['google']['groups']['executive_group']),
                         ],
                         'role': 'roles/iam.serviceAccountTokenCreator',
                     },
                     {
                         'members': [
-                            'principalSet://iam.googleapis.com/{0}/attribute.terraform_project_id/{1}'.format(poolId, wrkId),
+                            'principalSet://iam.googleapis.com/{0}/attribute.terraform_project_id/{1}'.format(poolId, setup['terraform']['workspace_project']),
                         ],
                         'role': 'roles/iam.workloadIdentityUser',
                     },
@@ -135,10 +135,10 @@ class ServiceAccount:
                 result = request.execute()
             except HttpError as e:
                 raise e
-        return result
+        return None
 
-def generate_service_account(credentials, parent, poolId, wrkId, executive_group):
-    service_account = ServiceAccount(parent=parent, name='builder', poolId=poolId, wrkId=wrkId, executive_group=executive_group)
+def generate_service_account(credentials, setup, parent, poolId):
+    service_account = ServiceAccount(setup=setup, parent=parent, poolId=poolId)
     diff = service_account.diff(credentials=credentials)
     if diff is None:
         service_account.create(credentials=credentials)

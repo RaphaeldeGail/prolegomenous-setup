@@ -47,7 +47,7 @@ class TagKey:
         if not 'response' in result:
             raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
         self.name = result['response']['name']
-        return result['response']
+        return None
     
     def update(self, credentials):
         """
@@ -71,7 +71,7 @@ class TagKey:
             except HttpError as e:
                 raise e
             result = operation.watch(api=api, operation=initial)
-        return result['response']
+        return None
     
     def diff(self, credentials):
         """
@@ -124,24 +124,24 @@ class TagKey:
                 result_policy = request.execute()
             except HttpError as e:
                 raise e
-        return result_policy
+        return None
 
 class RootTagKey(TagKey):
 
-    def __init__(self, parent):
+    def __init__(self, setup):
         super().__init__(
-            parent=parent,
-            description=root_tag_key_description.replace('\n', ' '),
-            short_name='root'
+            parent=setup['parent'],
+            description=setup['rootTag']['description'],
+            short_name=setup['rootTag']['shortName']
         )
 
 class WorkspaceTagKey(TagKey):
 
-    def __init__(self, parent, builder_email):
+    def __init__(self, setup, builder_email):
         super().__init__(
-            parent=parent,
-            description='Name of the workspace',
-            short_name='workspace'
+            parent=setup['parent'],
+            description=setup['workspaceTag']['description'],
+            short_name=setup['workspaceTag']['shortName']
         )
         self.iam_bindings =  {
             'policy': {
@@ -156,14 +156,14 @@ class WorkspaceTagKey(TagKey):
     
 class RootTagValue:
 
-    def __init__(self,parent, namespace):
+    def __init__(self, setup, parent, namespace):
         self.name = None
         self.data = {
-            'description': true_tag_value_description.replace('\n', ' '),
+            'description': setup['trueValue']['description'],
             'parent': parent,
-            'shortName': 'true'
+            'shortName': setup['trueValue']['shortName']
         }
-        self.namespace = namespace + '/true'
+        self.namespace = namespace + '/' + setup['trueValue']['shortName']
 
     def create(self, credentials):
         """
@@ -190,7 +190,7 @@ class RootTagValue:
         if not 'response' in result:
             raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
         self.name = result['response']['name']
-        return result['response']
+        return None
 
     def update(self, credentials):
         """
@@ -214,7 +214,7 @@ class RootTagValue:
             except HttpError as e:
                 raise e
             result = operation.watch(api=api, operation=initial)
-        return result['response']
+        return None
 
     def diff(self, credentials):
         """
@@ -275,7 +275,7 @@ class RootTagValue:
             except HttpError as e:
                 raise e
             result = operation.watch(api=api, operation=initial)
-        return result['response']
+        return None
 
     def is_bound(self, credentials, project):
         """
@@ -303,8 +303,8 @@ class RootTagValue:
             return True
         return False
 
-def generate_root_tag(credentials, parent):
-    root_key = RootTagKey(parent=parent)
+def generate_root_tag(credentials, setup):
+    root_key = RootTagKey(setup=setup)
     diff = root_key.diff(credentials=credentials)
     if diff is None:
         root_key.create(credentials=credentials)
@@ -312,7 +312,7 @@ def generate_root_tag(credentials, parent):
     elif diff != {}:
         root_key.update(credentials=credentials)
         print('tag key updated... ', end='')
-    true_value = RootTagValue(parent=root_key.name, namespace=root_key.namespace)
+    true_value = RootTagValue(setup=setup, parent=root_key.name, namespace=root_key.namespace)
     diff = true_value.diff(credentials=credentials)
     if diff is None:
         true_value.create(credentials=credentials)
@@ -323,8 +323,8 @@ def generate_root_tag(credentials, parent):
     print('tag value is up-to-date.')
     return true_value
 
-def generate_workspace_tag(credentials, parent, builder_email):
-    workspace_key = WorkspaceTagKey(parent=parent, builder_email=builder_email)
+def generate_workspace_tag(credentials, setup, builder_email):
+    workspace_key = WorkspaceTagKey(setup=setup, builder_email=builder_email)
     diff = workspace_key.diff(credentials=credentials)
     if diff is None:
         workspace_key.create(credentials=credentials)

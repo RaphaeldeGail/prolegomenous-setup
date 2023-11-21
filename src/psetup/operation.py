@@ -72,4 +72,4 @@ def watch(api, operation, period=5, timeout=60):
     if not 'response' in operation:
         return {}
 
-    return operation['result']
+    return operation['response']

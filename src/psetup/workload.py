@@ -5,8 +5,8 @@ from psetup import operation
 class WorkloadIdentityPool:
 
     def __init__(self, setup, parent):
-        self.name = '{0}/locations/global/workloadIdentityPools/{1}'.format(parent, setup['organizationPool']['id'])
-        self.parent = setup['parent']
+        self.parent = '{0}/locations/global'.format(parent)
+        self.name = '{0}/workloadIdentityPools/{1}'.format(self.parent, setup['organizationPool']['id'])
         self.data = {
             'description': setup['organizationPool']['description'],
             'disabled': 'False',
@@ -98,10 +98,9 @@ class WorkloadIdentityPool:
 
 class TerraformIdentityProvider:
 
-    providerId = 'tfc-oidc'
-
     def __init__(self, setup, parent):
-        self.name = '{0}/providers/{1}'.format(parent, setup['terraformProvider']['id'])
+        self.providerId = setup['terraformProvider']['id']
+        self.name = '{0}/providers/{1}'.format(parent, self.providerId)
         self.parent = parent
         self.data =  {  
             'attributeCondition': 'assertion.sub.startsWith("organization:{0}:project:Workspaces")'.format(setup['terraform']['organization']),

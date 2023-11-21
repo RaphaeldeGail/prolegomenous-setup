@@ -44,7 +44,7 @@ class WorkspaceFolder:
             result = operation.watch(api=api, operation=initial)
         if not 'response' in result:
             raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
-        self.name = result['response']['name']
+        self.name = result['name']
         return None
 
     def diff(self, credentials):

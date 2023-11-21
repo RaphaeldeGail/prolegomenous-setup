@@ -4,6 +4,7 @@ from googleapiclient.errors import HttpError
 class ServiceAccount:
 
     def __init__(self, setup, parent, poolId):
+        self.accountId = setup['builderAccount']['name']
         self.name = 'projects/{projectId}/serviceAccounts/{name}@{projectId}.iam.gserviceaccount.com'.format(projectId=parent, name=setup['builderAccount']['name'])
         self.data = { 
             'description': setup['builderAccount']['description'],
@@ -44,7 +45,7 @@ class ServiceAccount:
         """
         # build the api for resource management
         body = {
-            'accountId': 'builder',
+            'accountId': self.accountId,
             'serviceAccount': self.data
         }
         with build('iam', 'v1', credentials=credentials).projects().serviceAccounts() as api:
@@ -105,7 +106,7 @@ class ServiceAccount:
             try:
                 service_account = request.execute()
             except HttpError as e:
-                if e.status_code == 403:
+                if e.status_code == 404:
                     return None
                 raise e
         diff = {}

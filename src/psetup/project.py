@@ -66,7 +66,7 @@ class RootProject:
             result = operation.watch(api=api, operation=initial)
         if not 'response' in result:
             raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
-        self.name = result['response']['name']
+        self.name = result['name']
         return None
 
     def diff(self, credentials):
@@ -154,7 +154,7 @@ class RootProject:
                 except HttpError as e:
                     raise e
                 if not ( 'done', True ) in initial.items():
-                    result.append(operation.watch(api=api, operation=initial)['response']['service']['config']['name'])
+                    result.append(operation.watch(api=api, operation=initial)['service']['config']['name'])
                     continue
                 result.append(initial['response']['service']['config']['name'])
         return None

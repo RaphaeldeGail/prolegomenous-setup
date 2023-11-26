@@ -1,7 +1,7 @@
 from yaml import safe_load
 from schema import Schema, SchemaError
 from googleapiclient.discovery import build
-import sys
+from sys import prefix
 from os import path
 
 def override(dict1, dict2):
@@ -55,7 +55,7 @@ def from_yaml(credentials):
     })
 
     # default file for configuration of the structure root
-    default = '{0}/config/psetup/default.yaml'.format(sys.prefix)
+    default = '{0}/config/psetup/default.yaml'.format(prefix)
 
     if not path.isfile('environment.yaml'):
         raise RuntimeError('The file "environment.yaml" could not be found.')

@@ -6,43 +6,23 @@ from psetup import operation
 class RootProject:
 
     def __init__(self, setup):
+        display_name = setup['rootProject']['displayName']
+        executive_group = setup['google']['groups']['executive_group']
+        self.labels = setup['rootProject']['labels']
         self.name = None
-        self.uuid = randint(1,999999)
+        self.uuid = str(randint(1,999999))
         self.data = {
-            'displayName': setup['rootProject']['displayName'],
-            'labels': {
-                'root': 'true',
-                'uuid': str(self.uuid)
-            },
+            'displayName': display_name,
+            'labels': self.labels,
             'parent': setup['parent'],
-            'projectId': '{name}-{uuid}'.format(name=setup['rootProject']['displayName'], uuid=str(self.uuid))
+            'projectId': '{0}-{1}'.format(display_name, self.uuid)
         }
-        self.services = [
-            'cloudapis.googleapis.com',
-            'cloudbilling.googleapis.com',
-            'cloudidentity.googleapis.com',
-            'cloudkms.googleapis.com',
-            'cloudresourcemanager.googleapis.com',
-            'cloudtrace.googleapis.com',
-            'datastore.googleapis.com',
-            'iam.googleapis.com',
-            'iamcredentials.googleapis.com',
-            'logging.googleapis.com',
-            'servicemanagement.googleapis.com',
-            'serviceusage.googleapis.com',
-            'storage-api.googleapis.com',
-            'storage-component.googleapis.com',
-            'storage.googleapis.com',
-            'sts.googleapis.com',
-            'secretmanager.googleapis.com',
-            'billingbudgets.googleapis.com',
-            'dns.googleapis.com'
-        ]
+        self.services = setup['rootProject']['services']
         self.iam_bindings = {
             'policy': {
                 'bindings': [
                     {
-                        'members': ['group:{0}'.format(setup['google']['groups']['executive_group'])],
+                        'members': ['group:{0}'.format(executive_group)],
                         'role': 'roles/owner'
                     }
                 ]
@@ -61,11 +41,11 @@ class RootProject:
         """
         # build the api for resource management
         with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            create_request = api.projects().create(body=self.data)
-            initial = create_request.execute()
+            request = api.projects().create(body=self.data)
+            initial = request.execute()
             result = operation.watch(api=api, operation=initial)
-        if not 'response' in result:
-            raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
+        if not 'name' in result:
+            raise RuntimeError('No name found in: {0}'.format(str(result)))
         self.name = result['name']
         return None
 
@@ -82,11 +62,11 @@ class RootProject:
                 dict. If there is no existing state, returns False.
         """
         # this is the query to find the matching projects
-        query = (
+        query = [
             'parent={0}'.format(self.data['parent']),
-            ' AND labels.root=true',
             ' AND state=ACTIVE'
-        )
+        ]
+        query.extend([' AND labels.{0}={1}'.format(key, value) for key, value in self.labels.items()])
         # build the api for resource management
         projects = []
         with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
@@ -107,9 +87,9 @@ class RootProject:
             self.data['projectId'] = projects[0]['projectId']
             return projects[0]
         if len(projects) > 1:
-            raise RuntimeError('There should be at most one project with label root:true in the organization. found: {0}'.format(len(projects)))
+            raise RuntimeError('Found {0} projects with labels'.format(len(projects)))
 
-    def access_control(self, credentials):
+    def control_access(self, credentials):
         """
         Apply IAM policy to the project.
 
@@ -131,7 +111,7 @@ class RootProject:
                 raise e
         return None
 
-    def service_enable(self, credentials):
+    def enable_services(self, credentials):
         """
         Enable a list of services for the project.
 
@@ -159,7 +139,7 @@ class RootProject:
                 result.append(initial['response']['service']['config']['name'])
         return None
 
-def generate_project(credentials, setup):
+def generate_root(credentials, setup):
     """
     Generate the root project and related resources.
 
@@ -168,7 +148,7 @@ def generate_project(credentials, setup):
         setup: dict, the configuration used to build the root structure.
 
     Returns:
-        RootProject, the project created.
+        RootProject, the root project created.
     """
     project = RootProject(
         setup=setup
@@ -177,9 +157,8 @@ def generate_project(credentials, setup):
     if diff is None:
         project.create(credentials=credentials)
         print('project created... ', end='')
-    project.service_enable(credentials=credentials)
+    project.enable_services(credentials=credentials)
     print('services enabled... ', end='')
-    project.access_control(credentials=credentials)
+    project.control_access(credentials=credentials)
     print('IAM policies set... ', end='')
-    print('project is up-to-date.')
     return project

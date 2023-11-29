@@ -1,6 +1,6 @@
 .secrets
 environment.yaml
-config.yaml
+config.yaml*
 dist
 __pycache__
 *.egg-info

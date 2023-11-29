@@ -1,115 +1,24 @@
 from random import randint
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from psetup import operation
+from psetup.operation import watch
+from google.cloud import resourcemanager_v3
+from google.iam.v1 import iam_policy_pb2
+
+#from google.cloud import resourcemanager_v3
+#client = resourcemanager_v3.FoldersClient()
+#folder = resourcemanager_v3.Folder()
+#folder.parent = "organizations/66101817749"
+#folder.display_name = "toutoutoutou"
+#request = resourcemanager_v3.CreateFolderRequest(folder=folder)
+#operation = client.create_folder(request=request)
+#response = operation.result()
+#print(response)
 
 class RootProject:
 
     def __init__(self, setup):
-        display_name = setup['rootProject']['displayName']
-        executive_group = setup['google']['groups']['executive_group']
-        self.labels = setup['rootProject']['labels']
-        self.name = None
-        self.uuid = str(randint(1,999999))
-        self.data = {
-            'displayName': display_name,
-            'labels': self.labels,
-            'parent': setup['parent'],
-            'projectId': '{0}-{1}'.format(display_name, self.uuid)
-        }
         self.services = setup['rootProject']['services']
-        self.iam_bindings = {
-            'policy': {
-                'bindings': [
-                    {
-                        'members': ['group:{0}'.format(executive_group)],
-                        'role': 'roles/owner'
-                    }
-                ]
-            }
-        }
-
-    def create(self, credentials):
-        """
-        Create a project with google API call.
-
-        Args:
-            credentials: credential, the user authentification to make a call.
-
-        Returns:
-            dict, the project resulting from the operation.
-        """
-        # build the api for resource management
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            request = api.projects().create(body=self.data)
-            initial = request.execute()
-            result = operation.watch(api=api, operation=initial)
-        if not 'name' in result:
-            raise RuntimeError('No name found in: {0}'.format(str(result)))
-        self.name = result['name']
-        return None
-
-    def diff(self, credentials):
-        """
-        Show the differences between the declared project and and corresponding
-            existing project.
-
-        Args:
-            credentials: credential, the user authentification to make a call.
-
-        Returns:
-            dict, the difference between declared and existing project, as a
-                dict. If there is no existing state, returns False.
-        """
-        # this is the query to find the matching projects
-        query = [
-            'parent={0}'.format(self.data['parent']),
-            ' AND state=ACTIVE'
-        ]
-        query.extend([' AND labels.{0}={1}'.format(key, value) for key, value in self.labels.items()])
-        # build the api for resource management
-        projects = []
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            # Look for a project that already matches the declaration
-            request = api.projects().search(query=''.join(query))
-            while request is not None:
-                results = request.execute()
-                if 'projects' in results:
-                    projects.extend([ p for p in results['projects'] ])
-                request = api.projects().search_next(request, results)
-        if projects == []:
-            return None
-        if len(projects) == 1:
-            self.name = projects[0]['name']
-            self.uuid = projects[0]['projectId']
-            self.data['displayName'] = projects[0]['displayName']
-            self.data['labels'] = projects[0]['labels']
-            self.data['projectId'] = projects[0]['projectId']
-            return projects[0]
-        if len(projects) > 1:
-            raise RuntimeError('Found {0} projects with labels'.format(len(projects)))
-
-    def control_access(self, credentials):
-        """
-        Apply IAM policy to the project.
-
-        Args:
-            credentials: credential, the user authentification to make a call.
-
-        Returns:
-            dict, the IAM policy applied.
-
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            request = api.projects().setIamPolicy(resource=self.name, body=self.iam_bindings)
-            try:
-                result_policy = request.execute()
-            except HttpError as e:
-                raise e
-        return None
 
     def enable_services(self, credentials):
         """
@@ -134,12 +43,113 @@ class RootProject:
                 except HttpError as e:
                     raise e
                 if not ( 'done', True ) in initial.items():
-                    result.append(operation.watch(api=api, operation=initial)['service']['config']['name'])
+                    result.append(watch(api=api, operation=initial)['service']['config']['name'])
                     continue
                 result.append(initial['response']['service']['config']['name'])
         return None
 
-def generate_root(credentials, setup):
+def create(project):
+    """
+    Create a project with google API call.
+
+    Args:
+        credentials: credential, the user authentification to make a call.
+
+    Returns:
+        dict, the project resulting from the operation.
+    """
+    client = resourcemanager_v3.ProjectsClient()
+    request = resourcemanager_v3.CreateProjectRequest(project=project)
+    operation = client.create_project(request=request)
+    response = operation.result()
+    return response
+
+def diff(project):
+    """
+    Show the differences between the declared project and and corresponding
+        existing project.
+
+    Args:
+        credentials: credential, the user authentification to make a call.
+
+    Returns:
+        dict, the difference between declared and existing project, as a
+            dict. If there is no existing state, returns False.
+    """
+    # this is the query to find the matching projects
+    query = [
+        'parent={0}'.format(project.parent),
+        'AND state=ACTIVE'
+    ]
+    client = resourcemanager_v3.ProjectsClient()
+    for key, value in project.labels.items():
+        query.extend(['AND labels.{0}={1}'.format(key, value)])
+    # build the api for resource management
+    request = resourcemanager_v3.SearchProjectsRequest(query=' '.join(query))
+    page_result = client.search_projects(request=request)
+    projects = []
+    for project in page_result:
+        projects.extend([ project ])
+    num = len(projects)
+    if num == 0:
+        return None
+    if num == 1:
+        return projects[0]
+    if num > 1:
+        raise RuntimeError('Found {0} projects with labels'.format(num))
+
+def control_access(project, policy):
+    """
+    Apply IAM policy to the project.
+
+    Args:
+        credentials: credential, the user authentification to make a call.
+
+    Returns:
+        dict, the IAM policy applied.
+
+    Raises:
+        HttpError, Raises an exception if the API call does not return a
+            successful HTTP response.
+    """
+    client = resourcemanager_v3.ProjectsClient()
+    request = iam_policy_pb2.SetIamPolicyRequest(
+        resource=project.name,
+        policy=policy
+    )
+    response = client.set_iam_policy(request=request)
+    return response
+
+def enable_services(self, credentials):
+    """
+    Enable a list of services for the project.
+
+    Args:
+        credentials: credential, the user authentification to make a call.
+
+    Returns:
+        dict, the list of services enabled.
+
+    Raises:
+        HttpError, Raises an exception if the API call does not return a
+            successful HTTP response.
+    """
+    with build('serviceusage', 'v1', credentials=credentials) as api:
+        result = []
+        for service in self.services:
+            request = api.services().enable(name='{0}/services/{1}'.format(self.name, service))
+            try:
+                initial = request.execute()
+            except HttpError as e:
+                raise e
+            if not ( 'done', True ) in initial.items():
+                result.append(watch(api=api, operation=initial)['service']['config']['name'])
+                continue
+            result.append(initial['response']['service']['config']['name'])
+    return None
+
+
+def generate_root(setup):
     """
     Generate the root project and related resources.
 
@@ -150,15 +160,33 @@ def generate_root(credentials, setup):
     Returns:
         RootProject, the root project created.
     """
-    project = RootProject(
-        setup=setup
+    display_name = setup['rootProject']['displayName']
+    uuid = str(randint(1,999999))
+    executive_group = setup['google']['groups']['executive_group']
+    labels = setup['rootProject']['labels']
+    policy = {
+        'bindings': [
+            {
+                'members': ['group:{0}'.format(executive_group)],
+                'role': 'roles/owner'
+            }
+        ]
+    }
+    project = resourcemanager_v3.Project(
+        parent=setup['parent'],
+        project_id='{0}-{1}'.format(display_name, uuid),
+        display_name=display_name,
+        labels=labels
     )
-    diff = project.diff(credentials=credentials)
-    if diff is None:
-        project.create(credentials=credentials)
+    delta = diff(project)
+    if delta is None:
+        project = create(project=project)
         print('project created... ', end='')
-    project.enable_services(credentials=credentials)
-    print('services enabled... ', end='')
-    project.control_access(credentials=credentials)
-    print('IAM policies set... ', end='')
+    else:
+        project = delta
+
+    # project.enable_services(credentials=credentials)
+    # print('services enabled... ', end='')
+    control_access(project=project, policy=policy)
+    print('IAM policy set... ', end='')
     return project

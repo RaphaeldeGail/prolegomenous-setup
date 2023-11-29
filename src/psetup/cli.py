@@ -20,7 +20,7 @@ def main():
     print(timestamp)
 
     print('generating root project... ', end='')
-    root_project = project.generate_root(credentials=credentials, setup=setup)
+    root_project = project.generate_root(setup=setup)
     project_name = root_project.name
     print('DONE')
     print('generating root tag... ', end='')

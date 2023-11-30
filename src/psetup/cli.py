@@ -38,7 +38,7 @@ def main():
     builder_account = service_account.generate_service_account(
         credentials=credentials,
         setup=setup,
-        parent=root_project.data['projectId'],
+        parent=root_project.project_id,
         poolId=org_pool.name
     )
     builder_email = builder_account.name.split('/serviceAccounts/')[1]

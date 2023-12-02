@@ -24,7 +24,8 @@ def main():
     project_name = root_project.name
     print('DONE')
     print('generating root tag... ', end='')
-    root_tag = tag.generate_root_tag(credentials=credentials, setup=setup)
+    root_tag = tag.generate_root_tag(setup=setup)
+    print('DONE')
     if not root_tag.is_bound(credentials=credentials, project=project_name):
         print('binding root tag... ', end='')
         bound = root_tag.bind(credentials=credentials, project=project_name)

@@ -114,7 +114,6 @@ def generate_root(setup):
         services enabled and a new IAM policy.
 
     Args:
-        credentials: credential, the user authentification to make a call.
         setup: dict, the configuration used to build the root structure.
 
     Returns:

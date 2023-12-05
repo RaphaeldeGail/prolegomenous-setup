@@ -15,9 +15,12 @@ def _create_key(key):
     """
     client = resourcemanager_v3.TagKeysClient()
     request = resourcemanager_v3.CreateTagKeyRequest(tag_key=key)
+
     operation = client.create_tag_key(request=request)
     response = operation.result()
+
     print('key created... ', end='')
+
     return response
 
 def _update_key(declared_key, existing_key):
@@ -48,7 +51,9 @@ def _update_key(declared_key, existing_key):
     
     operation = client.update_tag_key(request=request)
     response = operation.result()
+
     print('key updated... ', end='')
+
     return response
 
 def _get_key(key):
@@ -107,7 +112,7 @@ def _create_value(value):
     Create a tag value with google API call.
 
     Args:
-        key: google.cloud.resourcemanager_v3.types.TagValue, the delcared tag
+        value: google.cloud.resourcemanager_v3.types.TagValue, the delcared tag
             value.
 
     Returns:
@@ -116,9 +121,12 @@ def _create_value(value):
     """
     client = resourcemanager_v3.TagValuesClient()
     request = resourcemanager_v3.CreateTagValueRequest(tag_value=value)
+
     operation = client.create_tag_value(request=request)
     response = operation.result()
+
     print('value created... ', end='')
+
     return response
 
 def _update_value(declared_value, existing_value):
@@ -149,7 +157,9 @@ def _update_value(declared_value, existing_value):
     
     operation = client.update_tag_value(request=request)
     response = operation.result()
+
     print('value updated... ', end='')
+
     return response
 
 def _get_value(value):
@@ -207,6 +217,7 @@ def _is_bound(binding):
     for response in page_result:
         if binding.tag_value == response.tag_value:
             return True
+
     return False
 
 def _bind(binding):
@@ -226,9 +237,10 @@ def _bind(binding):
 
     client = resourcemanager_v3.TagBindingsClient()
     request = resourcemanager_v3.CreateTagBindingRequest(tag_binding=binding)
-    operation = client.create_tag_binding(request=request)
 
+    operation = client.create_tag_binding(request=request)
     response = operation.result()
+
     print('binding created... ', end='')
 
     return response
@@ -238,9 +250,8 @@ def _control_access(key, policy):
     Apply IAM policy to the project.
 
     Args:
-        project: google.cloud.resourcemanager_v3.types.Project, the delcared
-            project.
-        policy: dict, list all `bindings` to apply to the project policy.
+        key: google.cloud.resourcemanager_v3.types.TagKey, the delcared tag key.
+        policy: dict, list all `bindings` to apply to the tag policy.
     """
     client = resourcemanager_v3.TagKeysClient()
     request = iam_policy_pb2.SetIamPolicyRequest(
@@ -249,6 +260,8 @@ def _control_access(key, policy):
     )
 
     client.set_iam_policy(request=request)
+
+    print('IAM policy set... ', end='')
 
     return None    
 
@@ -263,7 +276,8 @@ def generate_root_tag(setup, project):
     Returns:
         google.cloud.resourcemanager_v3.types.TagValue, the generated tag value.
     """
-    # Sets the variables for generating the tag
+    fqn = '//cloudresourcemanager.googleapis.com/{0}'.format(project.name)
+
     declared_key = resourcemanager_v3.TagKey(
         parent=setup['parent'],
         short_name=setup['rootTag']['shortName'],
@@ -274,7 +288,7 @@ def generate_root_tag(setup, project):
         description=setup['trueValue']['description'],
     )
     declared_binding = resourcemanager_v3.TagBinding(
-        parent='//cloudresourcemanager.googleapis.com/{0}'.format(project.name)
+        parent=fqn
     )
 
     try:
@@ -282,6 +296,9 @@ def generate_root_tag(setup, project):
     except ValueError as e:
         if e.args[0] == 0:
             key = _create_key(declared_key)
+        else:
+            raise
+
     key = _update_key(declared_key, key)
 
     declared_value.parent = key.name
@@ -291,6 +308,9 @@ def generate_root_tag(setup, project):
     except ValueError as e:
         if e.args[0] == 0:
             value = _create_value(value)
+        else:
+            raise
+
     value = _update_value(declared_value, value)
 
     declared_binding.tag_value = value.name 
@@ -300,7 +320,6 @@ def generate_root_tag(setup, project):
     return value
 
 def generate_workspace_tag(setup, builder_email):
-    # Sets the variables for generating the tag
     account = 'serviceAccount:{0}'.format(builder_email)
     role = 'roles/resourcemanager.tagAdmin'
     policy = {'bindings': [{'members': [account],'role': role}]}
@@ -315,8 +334,11 @@ def generate_workspace_tag(setup, builder_email):
     except ValueError as e:
         if e.args[0] == 0:
             key = _create_key(declared_key)
+        else:
+            raise
+
     key = _update_key(declared_key, key)
 
     _control_access(key=key, policy=policy)
-    print('IAM policy set... ', end='')
+
     return key

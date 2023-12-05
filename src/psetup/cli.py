@@ -24,11 +24,8 @@ def main():
     project_name = root_project.name
     print('DONE')
     print('generating root tag... ', end='')
-    root_tag = tag.generate_root_tag(setup=setup)
+    tag.generate_root_tag(setup=setup, project=root_project)
     print('DONE')
-    if not root_tag.is_bound(credentials=credentials, project=project_name):
-        print('binding root tag... ', end='')
-        bound = root_tag.bind(credentials=credentials, project=project_name)
     print('generating workload identity pool... ', end='')
     org_pool = workload.generate_provider(
         credentials=credentials,
@@ -45,10 +42,10 @@ def main():
     builder_email = builder_account.name.split('/serviceAccounts/')[1]
     print('generating workspace tag... ', end='')
     workspace_tag = tag.generate_workspace_tag(
-        credentials=credentials,
         setup=setup,
         builder_email=builder_email
     )
+    print('DONE')
     print('generating workspace folder... ', end='')
     workspace_folder = folder.generate_folder(
         credentials=credentials,

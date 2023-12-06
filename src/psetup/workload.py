@@ -1,226 +1,454 @@
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from psetup import operation
+from google.cloud import iam_v2
+from google.protobuf import field_mask_pb2
 
 class WorkloadIdentityPool:
 
-    def __init__(self, setup, parent):
-        self.parent = '{0}/locations/global'.format(parent)
-        self.name = '{0}/workloadIdentityPools/{1}'.format(self.parent, setup['organizationPool']['id'])
-        self.data = {
-            'description': setup['organizationPool']['description'],
-            'disabled': 'False',
-            'displayName': setup['organizationPool']['id'].replace('-', ' ').title()
-        }
+    def __init__(self, name=None, display_name=None, description=None):
+        self.name = name
+        self.display_name = display_name
+        self.description = description
+        self.disabled = False
 
-    def create(self, credentials):
-        """
-        Create a workload identity pool with google API call.
+    def from_dict(self, body):
+        try:
+            self.name = body['name']
+        except KeyError:
+            pass
+        try:
+            self.description = body['description']
+        except KeyError:
+            pass
+        try:
+            self.display_name = body['displayName']
+        except KeyError:
+            pass
 
-        Args:
-            credentials: credential, the user authentification to make a call.
+    @property
+    def id(self):
+        id = self.name.split('/')[-1]
+        return id
 
-        Returns:
-            dict, the pool resulting from the operation.
+    @property
+    def parent(self):
+        parent = self.name.split('/workloadIdentityPools/')[0]
+        return parent
 
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        # build the api for iam
-        with build('iam', 'v1', credentials=credentials).projects().locations().workloadIdentityPools() as api:
-            request = api.create(
-                parent=self.parent,
-                body=self.data,
-                workloadIdentityPoolId=self.name.split('/')[-1]
-            )
-            try:
-                initial = request.execute()
-            except HttpError as e:
-                raise e
-            result = operation.watch(api=api, operation=initial)
-        return None
+class WorkloadIdentityProvider:
 
-    def update(self, credentials, mask):
-        """
-        Update a workload identity pool with google API call.
+    def __init__(self, name=None, attribute_condition=None, attribute_mapping=None, description=None, display_name=None, oidc=None):
+        self.name = name
+        self.attribute_condition = attribute_condition
+        self.attribute_mapping = attribute_mapping
+        self.description = description
+        self.disabled = False
+        self.display_name = display_name
+        self.oidc = oidc
 
-        Args:
-            credentials: credential, the user authentification to make a call.
-            mask: string, a comma-separated list of fields to update.
-
-        Returns:
-            dict, the pool resulting from the operation.
-        
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        # build the api for resource management
-        with build('iam', 'v1', credentials=credentials).projects().locations().workloadIdentityPools() as api:
-            request = api.patch(name=self.name, body=self.data, updateMask=mask)
-            try:
-                initial = request.execute()
-            except HttpError as e:
-                raise e
-            result = operation.watch(api=api, operation=initial)
-        return None
-
-    def diff(self, credentials):
-        """
-        Show the differences between the declared pool and corresponding
-            existing pool.
-
-        Args:
-            credentials: credential, the user authentification to make a call.
-
-        Returns:
-            dict, the difference between declared and existing pools, as a
-                dict. If there is no existing state, returns None.
-        """
-        # build the api for iam
-        with build('iam', 'v1', credentials=credentials).projects().locations().workloadIdentityPools() as api:
-            request = api.get(name=self.name)
-            try:
-                result = request.execute()
-            except HttpError as e:
-                if e.status_code != 404:
-                    raise e
-                return None
-        diff = {}
-        if result['description'] != self.data['description']:
-            diff['description'] = self.data['description']
-        if result['state'] != 'ACTIVE':
-            diff['disabled'] = self.data['disabled']
-        if result['displayName'] != self.data['displayName']:
-            diff['displayName'] = self.data['displayName']        
-        return diff
-
-class TerraformIdentityProvider:
-
-    def __init__(self, setup, parent):
-        self.providerId = setup['terraformProvider']['id']
-        self.name = '{0}/providers/{1}'.format(parent, self.providerId)
-        self.parent = parent
-        self.data =  {  
-            'attributeCondition': 'assertion.sub.startsWith("organization:{0}:project:Workspaces")'.format(setup['terraform']['organization']),
-            'attributeMapping': setup['terraformProvider']['attributeMapping'],
-            'description': setup['terraformProvider']['description'],
-            'disabled': False,
-            'displayName': setup['terraformProvider']['displayName'],
-            'oidc': {
-                'allowedAudiences': [
-                    'https://tfc.{0}'.format(setup['google']['org_name']),
-                ],
-                'issuerUri': setup['terraformProvider']['oidc']['issuerUri']
-            }
-        }
-
-    def create(self, credentials):
-        """
-        Create a workload identity provider with google API call.
-
-        Args:
-            credentials: credential, the user authentification to make a call.
-
-        Returns:
-            dict, the provider resulting from the operation.
-
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        # build the api for iam
-        with build('iam', 'v1', credentials=credentials).projects().locations().workloadIdentityPools().providers() as api:
-            request = api.create(
-                parent=self.parent,
-                body=self.data,
-                workloadIdentityPoolProviderId=self.providerId
-            )
-            try:
-                initial = request.execute()
-            except HttpError as e:
-                raise e
-            result = operation.watch(api=api, operation=initial)
-        return None
+    def from_dict(self, body):
+        try:
+            self.name = body['name']
+        except KeyError:
+            pass
+        try:
+            self.description = body['description']
+        except KeyError:
+            pass
+        self.disabled = False
+        try:
+            self.display_name = body['displayName']
+        except KeyError:
+            pass
+        try:
+            self.attribute_condition = body['attributeCondition']
+        except KeyError:
+            pass
+        try:
+            self.attribute_mapping = body['attributeMapping']
+        except KeyError:
+            pass
+        try:
+            self.oidc = body['oidc']
+        except KeyError:
+            pass
+    @property
+    def id(self):
+        id = self.name.split('/')[-1]
+        return id
     
-    def update(self, credentials, mask):
-        """
-        Update a workload identity provider with google API call.
+    @property
+    def parent(self):
+        parent = self.name.split('/providers/')[0]
+        return parent
 
-        Args:
-            credentials: credential, the user authentification to make a call.
-            mask: string, a comma-separated list of fields to update.
+def _create_pool(pool):
+    """
+    Create a workload identity pool according to a declared one.
 
-        Returns:
-            dict, the provider resulting from the operation.
+    Args:
+        pool: WorkloadIdentityPool, the delcared workload identity pool.
+
+    Returns:
+        WorkloadIdentityPool, the workload identity pool created from the
+            operation.
+    """
+    # build the create request body
+    body = {
+        'description': pool.description,
+        'disabled': pool.disabled,
+        'displayName': pool.display_name
+    }
+
+    existing_pool = WorkloadIdentityPool(
+        name=pool.name
+    )
+
+    client = ('iam', 'v1').projects().locations().workloadIdentityPools()
+
+    with client as api:
+        request = api.create(
+            parent=pool.parent,
+            body=body,
+            workloadIdentityPoolId=pool.id
+        )
+
+        initial = request.execute()
+        result = operation.watch(api=api, operation=initial)
+
+    existing_pool.from_dict(result)
+
+    print('pool created... ', end='')
+
+    return existing_pool
+
+def _update_pool(declared_pool, existing_pool):
+    """
+    Update an existing workload identity pool compared to a declared one.
+
+    Args:
+        declared_pool: WorkloadIdentityPool, the declared workload identity
+            pool.
+        existing_pool: WorkloadIdentityPool, the existing workload identity
+            pool.
+
+    Returns:
+        WorkloadIdentityPool, the workload identity pool updated from the
+            operation.
+    """
+    mask = _diff_pool(declared=declared_pool, existing=existing_pool)
+    # build the create request body
+    body = {
+        'description': declared_pool.description,
+        'disabled': declared_pool.disabled,
+        'displayName': declared_pool.display_name
+    }
+
+    # If there is non differences, return the original existing key.
+    if mask == []:
+        return existing_pool
+
+    client = build('iam', 'v1').projects().locations().workloadIdentityPools() 
+    
+    with client as api:
+        request = api.patch(
+            name=declared_pool.name,
+            body=body,
+            updateMask=','.join(mask)
+        )
+
+        initial = request.execute()
+        result = operation.watch(api=api, operation=initial)
+
+    existing_pool.from_dict(result)
+
+    print('pool updated... ', end='')
+
+    return existing_pool
+
+def _get_pool(pool):
+    """
+    Get the existing workload identity pool in project corresponding to the
+        declared workload identity pool.
+
+    Args:
+        pool: WorkloadIdentityPool, the delcared workload identity pool.
+
+    Returns:
+        WorkloadIdentityPool, the existing workload identity pool.
+
+    Raises:
+        ValueError, if there is no workload identity pool matching the
+            definition.
+    """
+    parent = pool.parent
+    existing = None
+
+    existing_pool = WorkloadIdentityPool(
+        name=pool.name
+    )
+
+    client = build('iam', 'v1').projects().locations().workloadIdentityPools()
+
+    with client as api:
+        request = api.list(parent=parent)
+
+        while request is not None:
+            results = request.execute()
+            
+            for result in results['workloadIdentityPools']:
+                if result['name'] == pool.name:
+                    existing = result
+
+            request = api.list_next(request, results)
+    
+    if existing is None:
+        raise ValueError(0)
+    
+    existing_pool.from_dict(existing)
+
+    return existing_pool
+
+def _diff_pool(declared, existing):
+    """
+    Show the differences between a declared and an existing workload identity
+        pool.
+
+    Args:
+        declared: WorkloadIdentityPool, the delcared workload identity pool.
+        existing: WorkloadIdentityPool, the existing workload identity pool.
+
+    Returns:
+        list, the list of attributes to update to match existing and declared.
+    """
+    mask = []
+
+    if existing.name != declared.name:
+        mask.append('name')
+    if existing.description != declared.description:
+        mask.append('description')
+    if existing.display_name != declared.display_name:
+        mask.append('displayName')
+    
+    return mask
+
+def _get_provider(provider):
+    """
+    Get the existing workload identity provider in project corresponding to the
+        declared workload identity provider.
+
+    Args:
+        provider: WorkloadIdentityProvider, the delcared workload identity
+            provider.
+
+    Returns:
+        WorkloadIdentityProvider, the existing workload identity provider.
+
+    Raises:
+        ValueError, if there is no workload identity provider matching the
+            definition.
+    """
+    parent = provider.parent
+    existing = None
+
+    existing_provider = WorkloadIdentityProvider(
+        name=provider.name
+    )
+
+    client = build('iam', 'v1').projects().locations().workloadIdentityPools().providers()
+
+    with client as api:
+        request = api.list(parent=parent)
+
+        while request is not None:
+            results = request.execute()
+            
+            for result in results['workloadIdentityPoolProviders']:
+                if result['name'] == provider.name:
+                    existing = result
+
+            request = api.list_next(request, results)
+    
+    if existing is None:
+        raise ValueError(0)
+    
+    existing_provider.from_dict(existing)
+
+    return existing_provider
+
+def _update_provider(declared_provider, existing_provider):
+    """
+    Update an existing workload identity provider compared to a declared one.
+
+    Args:
+        declared_provider: WorkloadIdentityProvider, the declared workload
+            identity provider.
+        existing_provider: WorkloadIdentityProvider, the existing workload
+            identity provider.
+
+    Returns:
+        WorkloadIdentityProvider, the workload identity provider updated from
+            the operation.
+    """
+    mask = _diff_provider(declared_provider, existing_provider)
+    # build the create request body
+    body = {
+        'description': declared_provider.description,
+        'disabled': declared_provider.disabled,
+        'displayName': declared_provider.display_name,
+        'attributeCondition': declared_provider.attribute_condition,
+        'attributeMapping': declared_provider.attribute_mapping,
+        'oidc': declared_provider.oidc
+    }
+
+    # If there is non differences, return the original existing key.
+    if mask == []:
+        return 
         
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        # build the api for resource management
-        with build('iam', 'v1', credentials=credentials).projects().locations().workloadIdentityPools().providers() as api:
-            request = api.patch(name=self.name, body=self.data, updateMask=mask)
-            try:
-                initial = request.execute()
-            except HttpError as e:
-                raise e
-            result = operation.watch(api=api, operation=initial)
-        return None
+    client = build('iam', 'v1').projects().locations().workloadIdentityPools().providers()
+    
+    with client as api:
+        request = api.patch(
+            name=declared_provider.name,
+            body=body,
+            updateMask=','.join(mask)
+        )
 
-    def diff(self, credentials):
-        """
-        Show the differences between the declared provider and corresponding
-            existing proivder.
+        initial = request.execute()
+        result = operation.watch(api=api, operation=initial)
 
-        Args:
-            credentials: credential, the user authentification to make a call.
+    existing_provider.from_dict(result)
 
-        Returns:
-            dict, the difference between declared and existing providers, as a
-                dict. If there is no existing state, returns None.
-        """
-        # build the api for iam
-        with build('iam', 'v1', credentials=credentials).projects().locations().workloadIdentityPools().providers() as api:
-            request = api.get(name=self.name)
-            try:
-                result = request.execute()
-            except HttpError as e:
-                if e.status_code != 404:
-                    raise e
-                return None
-        diff = {}
-        if result['description'] != self.data['description']:
-            diff['description'] = self.data['description']
-        if result['state'] != 'ACTIVE':
-            diff['disabled'] = self.data['disabled']
-        if result['displayName'] != self.data['displayName']:
-            diff['displayName'] = self.data['displayName']
-        if result['attributeCondition'] != self.data['attributeCondition']:
-            diff['attributeCondition'] = self.data['attributeCondition']
-        if result['attributeMapping'] != self.data['attributeMapping']:
-            diff['attributeMapping'] = self.data['attributeMapping']
-        if (result['oidc']['issuerUri'] != self.data['oidc']['issuerUri']) or (result['oidc']['allowedAudiences'] != self.data['oidc']['allowedAudiences']):
-            diff['oidc'] = self.data['oidc']
-        return diff
+    print('provider updated... ', end='')
 
-def generate_provider(credentials, setup, parent):
-    pool = WorkloadIdentityPool(setup=setup, parent=parent)
-    diff = pool.diff(credentials=credentials)
-    if diff is None:
-        pool.create(credentials=credentials)
-        print('pool created... ', end='')
-    elif diff != {}:
-        pool.update(credentials=credentials, mask=','.join(diff.keys()))
-        print('pool updated... ', end='')
-    provider = TerraformIdentityProvider(setup=setup, parent=pool.name)
-    diff = provider.diff(credentials=credentials)
-    if diff is None:
-        provider.create(credentials=credentials)
-        print('provider created... ', end='')
-    elif diff != {}:
-        provider.update(credentials=credentials, mask=','.join(diff.keys()))
-        print('provider updated... ', end='')
-    print('provider is up-to-date.')
+    return existing_provider
+
+def _diff_provider(declared, existing):
+    """
+    Show the differences between a declared and an existing workload identity
+        provider.
+
+    Args:
+        declared: WorkloadIdentityProvider, the delcared workload identity
+            provider.
+        existing: WorkloadIdentityProvider, the existing workload identity
+            provider.
+
+    Returns:
+        list, the list of attributes to update to match existing and declared.
+    """
+    mask = []
+
+    if existing.name != declared.name:
+        mask.append('name')
+    if existing.description != declared.description:
+        mask.append('description')
+    if existing.display_name != declared.display_name:
+        mask.append('displayName')
+    if existing.attribute_condition != declared.attribute_condition:
+        mask.append('attritubteCondition')
+    if existing.attribute_mapping != declared.attribute_mapping:
+        mask.append('attritubteMapping')    
+    if existing.oidc != declared.oidc:
+        mask.append('oidc')
+    
+    return mask
+
+def _create_provider(provider):
+    """
+    Create a workload identity provider according to a declared one.
+
+    Args:
+        provider: WorkloadIdentityProvider, the delcared workload identity
+            provider.
+
+    Returns:
+        WorkloadIdentityProvider, the workload identity provider created from
+            the operation.
+    """
+    # build the create request body
+    body = {
+        'description': provider.description,
+        'disabled': provider.disabled,
+        'displayName': provider.display_name,
+        'attributeCondition': provider.attribute_condition,
+        'attributeMapping': provider.attribute_mapping,
+        'oidc': provider.oidc
+    }
+    existing_provider = WorkloadIdentityPool(
+        name=provider.name
+    )
+
+    client = build('iam', 'v1').projects().locations().workloadIdentityPools().providers()
+
+    with client as api:
+        request = api.create(
+            parent=provider.parent,
+            body=body,
+            workloadIdentityPoolProviderId=provider.id
+        )
+
+        initial = request.execute()
+        result = operation.watch(api=api, operation=initial)
+
+    existing_provider.from_dict(result)
+
+    print('provider created... ', end='')
+
+    return existing_provider
+
+def generate_terraform_provider(setup, project):
+    """
+    Generate the workload identity pool and identity provider for terraform.
+        Can either create, update or leave it as it is.
+
+    Args:
+        setup: dict, the configuration used to build the root structure.
+        project: string, the name of the project hosting the workload identity
+            pool.
+
+    Returns:
+        WorkloadIdentityPool, the generated workload identity pool.
+    """
+    terraform_org = setup['terraform']['organization']
+    org_name = setup['google']['org_name']
+
+    declared_pool = WorkloadIdentityPool(
+        name='{0}/locations/global/workloadIdentityPools/{1}'.format(project,setup['organizationPool']['id']),
+        description=setup['organizationPool']['description'],
+        display_name=setup['organizationPool']['id'].replace('-', ' ').title()
+    )
+    declared_provider = WorkloadIdentityProvider(
+        name='{0}/providers/{1}'.format(declared_pool.name, setup['terraformProvider']['id']),
+        description=setup['terraformProvider']['description'],
+        display_name=setup['terraformProvider']['displayName'],
+        oidc= {
+            'allowedAudiences': ['https://tfc.{0}'.format(org_name)],
+            'issuerUri': setup['terraformProvider']['oidc']['issuerUri']
+        },
+        attribute_mapping=setup['terraformProvider']['attributeMapping'],
+        attribute_condition='assertion.sub.startsWith("organization:{0}:project:Workspaces")'.format(terraform_org)
+    )
+
+    try:
+        pool = _get_pool(declared_pool)
+    except ValueError as e:
+        if e.args[0] == 0:
+            pool = _create_pool(declared_pool)
+        else:
+            raise e
+
+    pool = _update_pool(declared_pool, pool)
+
+    try:
+        provider = _get_provider(declared_provider)
+    except ValueError as e:
+        if e.args[0] == 0:
+            provider = _create_provider(declared_pool)
+        else:
+            raise e
+
+    _update_provider(declared_provider, provider)
+
     return pool

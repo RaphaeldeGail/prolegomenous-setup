@@ -278,11 +278,12 @@ def generate_root_tag(setup, project):
 
     Args:
         setup: dict, the configuration used to build the root structure.
+        project: string, the name of the project to bind the tag value with.
 
     Returns:
         google.cloud.resourcemanager_v3.types.TagValue, the generated tag value.
     """
-    fqn = '//cloudresourcemanager.googleapis.com/{0}'.format(project.name)
+    fqn = '//cloudresourcemanager.googleapis.com/{0}'.format(project)
 
     declared_key = resourcemanager_v3.TagKey(
         parent=setup['parent'],

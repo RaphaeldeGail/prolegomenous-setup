@@ -24,14 +24,14 @@ def main():
     project_name = root_project.name
     print('DONE')
     print('generating root tag... ', end='')
-    tag.generate_root_tag(setup=setup, project=root_project)
+    tag.generate_root_tag(setup=setup, project=project_name)
     print('DONE')
     print('generating workload identity pool... ', end='')
-    org_pool = workload.generate_provider(
-        credentials=credentials,
+    org_pool = workload.generate_terraform_provider(
         setup=setup,
-        parent=project_name
+        project=project_name
     )
+    print('DONE')
     print('generating service account... ', end='')
     builder_account = service_account.generate_service_account(
         credentials=credentials,

@@ -4,7 +4,7 @@ from google.protobuf import field_mask_pb2
 
 def _create_key(key):
     """
-    Create a tag key with google API call.
+    Create a tag key according to a declared key.
 
     Args:
         key: google.cloud.resourcemanager_v3.types.TagKey, the delcared tag key.
@@ -25,7 +25,7 @@ def _create_key(key):
 
 def _update_key(declared_key, existing_key):
     """
-    Update a tag key with google API call.
+    Update an existing tag key compared to a declared key.
 
     Args:
         declared_key: google.cloud.resourcemanager_v3.types.TagKey, the
@@ -39,6 +39,7 @@ def _update_key(declared_key, existing_key):
     """
     mask = _diff(declared=declared_key, existing=existing_key)
 
+    # If there is non differences, return the original existing key.
     if mask == []:
         return existing_key
     
@@ -58,7 +59,8 @@ def _update_key(declared_key, existing_key):
 
 def _get_key(key):
     """
-    Get the existing tag in Google organization corresponding to the definition.
+    Get the existing tag in Google organization corresponding to the declared
+        tag key.
 
     Args:
         key: google.cloud.resourcemanager_v3.types.TagKey, the delcared tag key.
@@ -69,15 +71,14 @@ def _get_key(key):
     Raises:
         ValueError, if there is no tag key matching the definition.
     """
-    # this is the query to find the matching projects
     parent = key.parent
     existing = None
 
-    # build the client for resource management
     client = resourcemanager_v3.TagKeysClient()
     request = resourcemanager_v3.ListTagKeysRequest(parent=parent)
 
     page_result = client.list_tag_keys(request=request)
+
     for result in page_result:
         if result.short_name == key.short_name:
             existing = result
@@ -89,7 +90,7 @@ def _get_key(key):
 
 def _diff(declared, existing):
     """
-    Get the existing tag in Google organization corresponding to the definition.
+    Show the differences between a declared and an existing tag key or value.
 
     Args:
         declared: [google.cloud.resourcemanager_v3.types.TagKey,
@@ -109,7 +110,7 @@ def _diff(declared, existing):
 
 def _create_value(value):
     """
-    Create a tag value with google API call.
+    Create a tag value according to a declared value.
 
     Args:
         value: google.cloud.resourcemanager_v3.types.TagValue, the delcared tag
@@ -131,7 +132,7 @@ def _create_value(value):
 
 def _update_value(declared_value, existing_value):
     """
-    Update a tag value with google API call.
+    Update an existing tag value compared to a declared value.
 
     Args:
         declared_value: google.cloud.resourcemanager_v3.types.TagValue, the
@@ -145,6 +146,7 @@ def _update_value(declared_value, existing_value):
     """
     mask = _diff(declared=declared_value, existing=existing_value)
 
+    # If there is non differences, return the original existing value.
     if mask == []:
         return existing_value
 
@@ -177,15 +179,14 @@ def _get_value(value):
     Raises:
         ValueError, if there is no tag value matching the definition.
     """
-    # this is the query to find the matching projects
     parent = value.parent
     existing = None
 
-    # build the client for resource management
     client = resourcemanager_v3.TagValuesClient()
     request = resourcemanager_v3.ListTagValuesRequest(parent=parent)
 
     page_result = client.list_tag_values(request=request)
+
     for result in page_result:
         if result.short_name == value.short_name:
             existing = result
@@ -195,18 +196,23 @@ def _get_value(value):
     
     return existing
 
-def _is_bound(binding):
+def _get_binding(binding):
     """
-    Indicate if the tag value is bound or not to a project.
+    Get the existing tag binding in project corresponding to the definition.
 
     Args:
         binding: google.cloud.resourcemanager_v3.types.TagBinding, the delcared
             tag binding.
 
     Returns:
-        bool, True if the project is bound to the tag value. False
-            otherwise.
+        binding: google.cloud.resourcemanager_v3.types.TagBinding, the existing
+            tag binding.
+
+    Raises:
+        ValueError, if there is no tag binding matching the definition.
     """
+    existing = None
+
     client = resourcemanager_v3.TagBindingsClient()
     request = resourcemanager_v3.ListTagBindingsRequest(
         parent=binding.parent
@@ -216,11 +222,14 @@ def _is_bound(binding):
 
     for response in page_result:
         if binding.tag_value == response.tag_value:
-            return True
+            existing = response
 
-    return False
+    if existing is None:
+        raise ValueError(0)
+    
+    return existing
 
-def _bind(binding):
+def _create_binding(binding):
     """
     Bind the tag value to a project.
 
@@ -232,9 +241,6 @@ def _bind(binding):
         google.cloud.resourcemanager_v3.types.TagBinding, the tag binding
             created.
     """
-    if _is_bound(binding=binding):
-        return binding
-
     client = resourcemanager_v3.TagBindingsClient()
     request = resourcemanager_v3.CreateTagBindingRequest(tag_binding=binding)
 
@@ -247,7 +253,7 @@ def _bind(binding):
 
 def _control_access(key, policy):
     """
-    Apply IAM policy to the project.
+    Apply IAM policy to the tag key.
 
     Args:
         key: google.cloud.resourcemanager_v3.types.TagKey, the delcared tag key.
@@ -268,7 +274,7 @@ def _control_access(key, policy):
 def generate_root_tag(setup, project):
     """
     Generate the root tag key and value. Can either create, update or leave it
-        as it is. The tag is also updated with a new IAM policy.
+        as it is. The tag value is also updated with a binding.
 
     Args:
         setup: dict, the configuration used to build the root structure.
@@ -297,7 +303,7 @@ def generate_root_tag(setup, project):
         if e.args[0] == 0:
             key = _create_key(declared_key)
         else:
-            raise
+            raise e
 
     key = _update_key(declared_key, key)
 
@@ -309,17 +315,33 @@ def generate_root_tag(setup, project):
         if e.args[0] == 0:
             value = _create_value(value)
         else:
-            raise
+            raise e
 
     value = _update_value(declared_value, value)
 
     declared_binding.tag_value = value.name 
 
-    _bind(binding=declared_binding)
+    try:
+        _get_binding(declared_binding)
+    except ValueError as e:
+        if e.args[0] == 0:
+            _create_binding(declared_binding)
+        else:
+            raise e
 
     return value
 
 def generate_workspace_tag(setup, builder_email):
+    """
+    Generate the workspace tag key. Can either create, update or leave it
+        as it is. The tag is also updated with a new IAM policy.
+
+    Args:
+        setup: dict, the configuration used to build the root structure.
+
+    Returns:
+        google.cloud.resourcemanager_v3.types.TagKey, the generated tag value.
+    """
     account = 'serviceAccount:{0}'.format(builder_email)
     role = 'roles/resourcemanager.tagAdmin'
     policy = {'bindings': [{'members': [account],'role': role}]}
@@ -335,7 +357,7 @@ def generate_workspace_tag(setup, builder_email):
         if e.args[0] == 0:
             key = _create_key(declared_key)
         else:
-            raise
+            raise e
 
     key = _update_key(declared_key, key)
 

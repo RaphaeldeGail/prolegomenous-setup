@@ -3,13 +3,13 @@ from google.cloud import resourcemanager_v3
 from google.cloud import service_usage_v1
 from google.iam.v1 import iam_policy_pb2
 
-def create(project):
+def _create_project(project):
     """
-    Create a project with google API call.
+    Create a project according to a declared project.
 
     Args:
-        project: google.cloud.resourcemanager_v3.types.Project, the project to
-            create.
+        project: google.cloud.resourcemanager_v3.types.Project, the declared
+            project.
 
     Returns:
         google.cloud.resourcemanager_v3.types.Project, the project created from
@@ -17,26 +17,30 @@ def create(project):
     """
     client = resourcemanager_v3.ProjectsClient()
     request = resourcemanager_v3.CreateProjectRequest(project=project)
+
     operation = client.create_project(request=request)
     response = operation.result()
+
+    print('project created... ', end='')
+
     return response
 
-def diff(project):
+def _get_project(project):
     """
-    Show the differences between the declared project and and corresponding
-        existing project.
+    Get the existing project in Google organization corresponding to the
+        declared project.
 
     Args:
         project: google.cloud.resourcemanager_v3.types.Project, the delcared
             project.
 
     Returns:
-        google.cloud.resourcemanager_v3.types.Project, the matching project if
-            it exists.
+        google.cloud.resourcemanager_v3.types.Project, the existing project if
+            it is unique.
 
     Raises:
-        ValueError, if there is zero or more than one existing projects
-            matching the labels.
+        ValueError, if there is no project matching the declared project, or if
+        the matching project is not unique.
     """
     # this is the query to find the matching projects
     query = [
@@ -46,29 +50,31 @@ def diff(project):
     for key, value in project.labels.items():
         query.extend(['AND labels.{0}={1}'.format(key, value)])
     query = ' '.join(query)
+    # instantiate the list of corresponding projects
     projects = []
 
-    # build the client for resource management
     client = resourcemanager_v3.ProjectsClient()
     request = resourcemanager_v3.SearchProjectsRequest(query=query)
 
     page_result = client.search_projects(request=request)
+
     for project in page_result:
         projects.append(project)
-
+    
     num = len(projects)
 
     if num == 0:
         e = ValueError(num)
         raise e
+
     if num == 1:
         return projects[0]
+
     if num > 1:
-        print('ERROR Too many projects with matching labels.')
         e = ValueError(num, [ p.name for p in projects ])
         raise e
 
-def control_access(project, policy):
+def _control_access(project, policy):
     """
     Apply IAM policy to the project.
 
@@ -85,9 +91,11 @@ def control_access(project, policy):
 
     client.set_iam_policy(request=request)
 
+    print('IAM policy set... ', end='')
+
     return None
 
-def enable_services(project, services):
+def _enable_services(project, services):
     """
     Enable a list of services for the project.
 
@@ -104,6 +112,8 @@ def enable_services(project, services):
 
     operation = client.batch_enable_services(request=request)
     operation.result()
+
+    print('services enabled... ', end='')
 
     return None
 
@@ -124,13 +134,12 @@ def generate_root(setup):
     display_name = setup['rootProject']['displayName']
     uuid = str(randint(1,999999))
     project_id = '{0}-{1}'.format(display_name, uuid)
-    exec_gr = 'group:{0}'.format(setup['google']['groups']['executive_group'])
+    exec_grp = 'group:{0}'.format(setup['google']['groups']['executive_group'])
     labels = setup['rootProject']['labels']
     services = setup['rootProject']['services']
-    policy = {'bindings': [{'members': [exec_gr], 'role': 'roles/owner'}]}
+    policy = {'bindings': [{'members': [exec_grp], 'role': 'roles/owner'}]}
 
-    # Construct the declared project
-    project = resourcemanager_v3.Project(
+    declared_project = resourcemanager_v3.Project(
         parent=parent,
         project_id=project_id,
         display_name=display_name,
@@ -138,21 +147,17 @@ def generate_root(setup):
     )
 
     try:
-        project = diff(project)
-        print('project already exists... ', end='')
+        project = _get_project(declared_project)
     except ValueError as e:
         if e.args[0] == 0:
-            project = create(project=project)
-            print('project created... ', end='')
+            project = _create_project(declared_project)
         else:
             print('Found {0} projects'.format(e.args[0]))
             print('List of projects: {0}'.format(str(e.args[1])))
             raise e
    
-    enable_services(project=project, services=services)
-    print('services enabled... ', end='')
+    _enable_services(project=project, services=services)
 
-    control_access(project=project, policy=policy)
-    print('IAM policy set... ', end='')
+    _control_access(project=project, policy=policy)
 
     return project

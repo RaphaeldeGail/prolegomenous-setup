@@ -34,11 +34,11 @@ def main():
     print('DONE')
     print('generating service account... ', end='')
     builder_account = service_account.generate_service_account(
-        credentials=credentials,
         setup=setup,
         parent=root_project.project_id,
         poolId=org_pool.name
     )
+    print('DONE')
     builder_email = builder_account.name.split('/serviceAccounts/')[1]
     print('generating workspace tag... ', end='')
     workspace_tag = tag.generate_workspace_tag(
@@ -52,3 +52,4 @@ def main():
         setup=setup,
         builder_email=builder_email
     )
+    print('DONE')

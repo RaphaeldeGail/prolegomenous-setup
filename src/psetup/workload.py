@@ -1,20 +1,57 @@
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 from psetup import operation
-from google.cloud import iam_v2
-from google.protobuf import field_mask_pb2
+
+# base client for all actions on workload identity pools and providers
+client = build('iam', 'v1').projects().locations().workloadIdentityPools()
 
 class WorkloadIdentityPool:
+    """A class to represent a workload identity pool in Google Cloud.
 
-    def __init__(self, name=None, display_name=None, description=None):
-        self.name = name
+    Attributes:
+        id: string, the ID for the pool, which becomes the final component
+            of the resource name.
+        project: string, the name of the project to create this pool in.
+        display_name: string, a user-friendly name for the pool.
+        description: string, a description of the pool.
+        disabled: boolean, wether the pool is activated or not. Deactivated
+            pools can not be used to deliver authorization tokens.
+    """
+
+    def __init__(self,
+        id=None,
+        project=None,
+        display_name=None,
+        description=None
+    ):
+        """Initializes the instance based on attributes.
+
+        Args:
+            id: string, the ID for the provider, which becomes the final
+                component of the resource name.
+            project: string, the name of the project to create this pool in.
+            display_name: string, a user-friendly name for the pool.
+            description: string, a description of the pool.
+        """
+        self.id = id
+        self.project = project
         self.display_name = display_name
         self.description = description
+        # the pool must always be activated in our case
         self.disabled = False
 
-    def from_dict(self, body):
+    def update_from_dict(self, body):
+        """Update the instance from a dictionnary.
+
+        Args:
+            body: dict, the key-value representation of all or any part of the
+                instance attributes.
+        """
         try:
-            self.name = body['name']
+            self.id = body['name'].split('/workloadIdentityPools/')[-1]
+        except KeyError:
+            pass
+        try:
+            self.project = body['name'].split('/locations/')[0]
         except KeyError:
             pass
         try:
@@ -27,19 +64,59 @@ class WorkloadIdentityPool:
             pass
 
     @property
-    def id(self):
-        id = self.name.split('/')[-1]
-        return id
+    def name(self):
+        """Returns the fully qualified name of the instance.
+        """
+        fmt = '{0}/workloadIdentityPools/{1}'.format(self.parent, self.id)
+        return fmt
 
     @property
     def parent(self):
-        parent = self.name.split('/workloadIdentityPools/')[0]
-        return parent
+        """Returns the fully qualified name of the parent of the instance.
+        """
+        fmt = '{0}/locations/global'.format(self.project)
+        return fmt
 
 class WorkloadIdentityProvider:
+    """A class to represent a workload identity pool provider in Google Cloud.
 
-    def __init__(self, name=None, attribute_condition=None, attribute_mapping=None, description=None, display_name=None, oidc=None):
-        self.name = name
+    Attributes:
+        id: string, the ID for the provider, which becomes the final component
+            of the resource name.
+        parent: string, the name of the pool to create this provider in.
+        attribute_condition: string, the condition for the tokens to match.
+        attribute_mapping: dict, a map of attributes between tokens.
+        description: string, a description of the provider.
+        display_name: string, a user-friendly name for the provider.
+        oidc: dict, parameters for the openID connect protocol.
+        disabled: boolean, wether the provider is activated or not. Deactivated
+            providers can not be used to deliver identification tokens.
+    """
+
+    def __init__(
+        self,
+        id=None,
+        parent=None,
+        attribute_condition=None,
+        attribute_mapping=None,
+        description=None,
+        display_name=None,
+        oidc=None
+    ):
+        """Initializes the instance based on attributes.
+
+        Args:
+            id: string, the ID for the provider, which becomes the final
+                component of the resource name.
+            parent: string, the name of the pool to create this provider in.
+            attribute_condition: string, the condition for the tokens to match.
+            attribute_mapping: dict, a map of attributes between tokens.
+            description: string, a description of the provider.
+            display_name: string, a user-friendly name for the provider.
+            oidc: dict, parameters for the openID connect protocol.
+        """
+        self.id = id
+        self.parent = parent
         self.attribute_condition = attribute_condition
         self.attribute_mapping = attribute_mapping
         self.description = description
@@ -47,16 +124,25 @@ class WorkloadIdentityProvider:
         self.display_name = display_name
         self.oidc = oidc
 
-    def from_dict(self, body):
+    def update_from_dict(self, body):
+        """Update the instance from a dictionnary.
+
+        Args:
+            body: dict, the key-value representation of all or any part of the
+                instance attributes.
+        """
         try:
-            self.name = body['name']
+            self.id = body['name'].split('/providers/')[-1]
+        except KeyError:
+            pass
+        try:
+            self.parent = body['name'].split('/providers/')[0]
         except KeyError:
             pass
         try:
             self.description = body['description']
         except KeyError:
             pass
-        self.disabled = False
         try:
             self.display_name = body['displayName']
         except KeyError:
@@ -73,15 +159,14 @@ class WorkloadIdentityProvider:
             self.oidc = body['oidc']
         except KeyError:
             pass
+
     @property
-    def id(self):
-        id = self.name.split('/')[-1]
-        return id
-    
-    @property
-    def parent(self):
-        parent = self.name.split('/providers/')[0]
-        return parent
+    def name(self):
+        """Returns the fully qualified name of the instance.
+        """
+        fmt = '{0}/providers/{1}'.format(self.parent, self.id)
+        return fmt
+
 
 def _create_pool(pool):
     """
@@ -105,8 +190,6 @@ def _create_pool(pool):
         name=pool.name
     )
 
-    client = ('iam', 'v1').projects().locations().workloadIdentityPools()
-
     with client as api:
         request = api.create(
             parent=pool.parent,
@@ -117,7 +200,7 @@ def _create_pool(pool):
         initial = request.execute()
         result = operation.watch(api=api, operation=initial)
 
-    existing_pool.from_dict(result)
+    existing_pool.update_from_dict(result)
 
     print('pool created... ', end='')
 
@@ -137,7 +220,7 @@ def _update_pool(declared_pool, existing_pool):
         WorkloadIdentityPool, the workload identity pool updated from the
             operation.
     """
-    mask = _diff_pool(declared=declared_pool, existing=existing_pool)
+    mask = _diff(declared=declared_pool, existing=existing_pool)
     # build the create request body
     body = {
         'description': declared_pool.description,
@@ -148,8 +231,6 @@ def _update_pool(declared_pool, existing_pool):
     # If there is non differences, return the original existing key.
     if mask == []:
         return existing_pool
-
-    client = build('iam', 'v1').projects().locations().workloadIdentityPools() 
     
     with client as api:
         request = api.patch(
@@ -161,7 +242,7 @@ def _update_pool(declared_pool, existing_pool):
         initial = request.execute()
         result = operation.watch(api=api, operation=initial)
 
-    existing_pool.from_dict(result)
+    existing_pool.update_from_dict(result)
 
     print('pool updated... ', end='')
 
@@ -186,10 +267,9 @@ def _get_pool(pool):
     existing = None
 
     existing_pool = WorkloadIdentityPool(
-        name=pool.name
+        id=pool.id,
+        project=pool.project
     )
-
-    client = build('iam', 'v1').projects().locations().workloadIdentityPools()
 
     with client as api:
         request = api.list(parent=parent)
@@ -206,32 +286,9 @@ def _get_pool(pool):
     if existing is None:
         raise ValueError(0)
     
-    existing_pool.from_dict(existing)
+    existing_pool.update_from_dict(existing)
 
     return existing_pool
-
-def _diff_pool(declared, existing):
-    """
-    Show the differences between a declared and an existing workload identity
-        pool.
-
-    Args:
-        declared: WorkloadIdentityPool, the delcared workload identity pool.
-        existing: WorkloadIdentityPool, the existing workload identity pool.
-
-    Returns:
-        list, the list of attributes to update to match existing and declared.
-    """
-    mask = []
-
-    if existing.name != declared.name:
-        mask.append('name')
-    if existing.description != declared.description:
-        mask.append('description')
-    if existing.display_name != declared.display_name:
-        mask.append('displayName')
-    
-    return mask
 
 def _get_provider(provider):
     """
@@ -253,12 +310,11 @@ def _get_provider(provider):
     existing = None
 
     existing_provider = WorkloadIdentityProvider(
-        name=provider.name
+        id=provider.id,
+        parent=parent
     )
 
-    client = build('iam', 'v1').projects().locations().workloadIdentityPools().providers()
-
-    with client as api:
+    with client.providers() as api:
         request = api.list(parent=parent)
 
         while request is not None:
@@ -273,7 +329,7 @@ def _get_provider(provider):
     if existing is None:
         raise ValueError(0)
     
-    existing_provider.from_dict(existing)
+    existing_provider.update_from_dict(existing)
 
     return existing_provider
 
@@ -291,7 +347,7 @@ def _update_provider(declared_provider, existing_provider):
         WorkloadIdentityProvider, the workload identity provider updated from
             the operation.
     """
-    mask = _diff_provider(declared_provider, existing_provider)
+    mask = _diff(declared_provider, existing_provider)
     # build the create request body
     body = {
         'description': declared_provider.description,
@@ -304,11 +360,9 @@ def _update_provider(declared_provider, existing_provider):
 
     # If there is non differences, return the original existing key.
     if mask == []:
-        return 
-        
-    client = build('iam', 'v1').projects().locations().workloadIdentityPools().providers()
+        return existing_provider
     
-    with client as api:
+    with client.providers() as api:
         request = api.patch(
             name=declared_provider.name,
             body=body,
@@ -318,40 +372,31 @@ def _update_provider(declared_provider, existing_provider):
         initial = request.execute()
         result = operation.watch(api=api, operation=initial)
 
-    existing_provider.from_dict(result)
+    existing_provider.update_from_dict(result)
 
     print('provider updated... ', end='')
 
     return existing_provider
 
-def _diff_provider(declared, existing):
+def _diff(declared, existing):
     """
     Show the differences between a declared and an existing workload identity
-        provider.
+        pool or provider.
 
     Args:
-        declared: WorkloadIdentityProvider, the delcared workload identity
-            provider.
-        existing: WorkloadIdentityProvider, the existing workload identity
-            provider.
+        declared: [WorkloadIdentityPool, WorkloadIdentityProvider], the
+            delcared workload identity pool or provider.
+        existing: [WorkloadIdentityPool, WorkloadIdentityProvider], the
+            existing workload identity pool or provider.
 
     Returns:
         list, the list of attributes to update to match existing and declared.
     """
     mask = []
 
-    if existing.name != declared.name:
-        mask.append('name')
-    if existing.description != declared.description:
-        mask.append('description')
-    if existing.display_name != declared.display_name:
-        mask.append('displayName')
-    if existing.attribute_condition != declared.attribute_condition:
-        mask.append('attritubteCondition')
-    if existing.attribute_mapping != declared.attribute_mapping:
-        mask.append('attritubteMapping')    
-    if existing.oidc != declared.oidc:
-        mask.append('oidc')
+    for attr in existing.__dict__.keys():
+        if existing.__getattribute__(attr) != declared.__getattribute__(attr):
+            mask.append(attr)
     
     return mask
 
@@ -380,8 +425,6 @@ def _create_provider(provider):
         name=provider.name
     )
 
-    client = build('iam', 'v1').projects().locations().workloadIdentityPools().providers()
-
     with client as api:
         request = api.create(
             parent=provider.parent,
@@ -392,7 +435,7 @@ def _create_provider(provider):
         initial = request.execute()
         result = operation.watch(api=api, operation=initial)
 
-    existing_provider.from_dict(result)
+    existing_provider.update_from_dict(result)
 
     print('provider created... ', end='')
 
@@ -411,24 +454,30 @@ def generate_terraform_provider(setup, project):
     Returns:
         WorkloadIdentityPool, the generated workload identity pool.
     """
-    terraform_org = setup['terraform']['organization']
     org_name = setup['google']['org_name']
+    terraform_org = setup['terraform']['organization']
+    pool_id = setup['organizationPool']['id']
+    condition = 'organization:{0}:project:Workspaces'.format(terraform_org)
+    attribute_condition = 'assertion.sub.startsWith("{0}")'.format(condition)
+    oidc = {
+        'allowedAudiences': ['https://tfc.{0}'.format(org_name)],
+        'issuerUri': setup['terraformProvider']['oidc']['issuerUri']
+    }
 
     declared_pool = WorkloadIdentityPool(
-        name='{0}/locations/global/workloadIdentityPools/{1}'.format(project,setup['organizationPool']['id']),
+        id=pool_id,
+        project=project,
         description=setup['organizationPool']['description'],
-        display_name=setup['organizationPool']['id'].replace('-', ' ').title()
+        display_name=pool_id.replace('-', ' ').title()
     )
     declared_provider = WorkloadIdentityProvider(
-        name='{0}/providers/{1}'.format(declared_pool.name, setup['terraformProvider']['id']),
+        id=setup['terraformProvider']['id'],
+        parent=declared_pool.name,
         description=setup['terraformProvider']['description'],
         display_name=setup['terraformProvider']['displayName'],
-        oidc= {
-            'allowedAudiences': ['https://tfc.{0}'.format(org_name)],
-            'issuerUri': setup['terraformProvider']['oidc']['issuerUri']
-        },
+        oidc= oidc,
         attribute_mapping=setup['terraformProvider']['attributeMapping'],
-        attribute_condition='assertion.sub.startsWith("organization:{0}:project:Workspaces")'.format(terraform_org)
+        attribute_condition=attribute_condition
     )
 
     try:

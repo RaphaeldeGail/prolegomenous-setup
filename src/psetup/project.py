@@ -2,6 +2,7 @@ from random import randint
 from google.cloud import resourcemanager_v3
 from google.cloud import service_usage_v1
 from google.iam.v1 import iam_policy_pb2
+from google.cloud import billing_v1
 
 def _create_project(project):
     """
@@ -117,6 +118,30 @@ def _enable_services(project, services):
 
     return None
 
+def _update_billing(billing):
+    """
+    Update a project billing info compared to a declared value.
+
+    Args:
+        billing: google.cloud.resourcemanager_v3.types.ProjectBillingInfo, the
+            declared project billing info.
+
+    Returns:
+        google.cloud.resourcemanager_v3.types.ProjectBillingInfo, the project
+            billing info updated from the operation.
+    """
+    client = billing_v1.CloudBillingClient()
+    request = billing_v1.UpdateProjectBillingInfoRequest(
+        name='projects/{0}'.format(billing.project_id),
+        project_billing_info=billing
+    )
+
+    response = client.update_project_billing_info(request=request)
+
+    print('billing enabled... ', end='')
+    
+    return response
+
 def generate_root(setup):
     """
     Generate the root project and related resources. Can either create, update
@@ -137,6 +162,7 @@ def generate_root(setup):
     exec_grp = 'group:{0}'.format(setup['google']['groups']['executive_group'])
     labels = setup['rootProject']['labels']
     services = setup['rootProject']['services']
+    bill = 'billingAccounts/{0}'.format(setup['google']['billing_account'])
     policy = {'bindings': [{'members': [exec_grp], 'role': 'roles/owner'}]}
 
     declared_project = resourcemanager_v3.Project(
@@ -144,6 +170,10 @@ def generate_root(setup):
         project_id=project_id,
         display_name=display_name,
         labels=labels
+    )
+
+    declared_billing = billing_v1.ProjectBillingInfo(
+        billing_account_name=bill
     )
 
     try:
@@ -155,6 +185,10 @@ def generate_root(setup):
             print('Found {0} projects'.format(e.args[0]))
             print('List of projects: {0}'.format(str(e.args[1])))
             raise e
+    
+    declared_billing.project_id = project.project_id
+
+    _update_billing(declared_billing)
    
     _enable_services(project=project, services=services)
 

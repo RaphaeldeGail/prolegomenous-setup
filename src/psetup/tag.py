@@ -339,6 +339,7 @@ def generate_workspace_tag(setup, builder_email):
 
     Args:
         setup: dict, the configuration used to build the root structure.
+        builder_email: string, the email of the builder service account.
 
     Returns:
         google.cloud.resourcemanager_v3.types.TagKey, the generated tag value.

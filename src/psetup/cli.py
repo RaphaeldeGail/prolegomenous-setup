@@ -48,7 +48,6 @@ def main():
     print('DONE')
     print('generating workspace folder... ', end='')
     workspace_folder = folder.generate_folder(
-        credentials=credentials,
         setup=setup,
         builder_email=builder_email
     )

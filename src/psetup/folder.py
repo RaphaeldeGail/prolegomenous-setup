@@ -1,134 +1,120 @@
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-from psetup import operation
+from google.cloud import resourcemanager_v3
+from google.iam.v1 import iam_policy_pb2
 
-class WorkspaceFolder:
-
-    display_name = 'Workspaces'
-
-    def __init__(self, setup, builder_email):
-        self.name = None
-        self.data = {
-            'displayName': setup['workspaceFolder']['displayName'],
-            'parent': setup['parent'],
-        }
-        self.iam_bindings = {
-            'policy': {
-                'bindings': [
-                    {
-                        'members': ['group:{0}'.format(setup['google']['groups']['executive_group'])],
-                        'role': 'roles/resourcemanager.folderAdmin'
-                    },
-                    {
-                        'members': ['serviceAccount:{0}'.format(builder_email)],
-                        'role': '{0}/roles/{1}'.format(setup['parent'], setup['workspaceFolder']['builderRole'])
-                    }
-                ]
-            }
-        }
-
-    def create(self, credentials):
-        """
-        Create a folder with google API call.
-
-        Args:
-            credentials: credential, the user authentification to make a call.
-
-        Returns:
-            dict, the folder resulting from the operation.
-        """
-        # build the api for resource management
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            request = api.folders().create(body=self.data)
-            initial = request.execute()
-            result = operation.watch(api=api, operation=initial)
-        if not 'response' in result:
-            raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
-        self.name = result['name']
-        return None
-
-    def diff(self, credentials):
-        """
-        Show the differences between the declared folder and and corresponding
-            existing folder.
-
-        Args:
-            credentials: credential, the user authentification to make a call.
-
-        Returns:
-            dict, the difference between declared and existing folder, as a
-                dict. If there is no existing state, returns None.
-        """
-        # this is the query to find the matching folders
-        query = (
-            'parent={0}'.format(self.data['parent']),
-            ' AND displayName={0}'.format(self.display_name),
-            ' AND state=ACTIVE'
-        )
-        # build the api for resource management
-        folders = []
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            # Look for a folder that already matches the declaration
-            request = api.folders().search(query=''.join(query))
-            while request is not None:
-                results = request.execute()
-                if 'folders' in results:
-                    folders.extend([ f for f in results['folders'] ])
-                request = api.folders().search_next(request, results)
-        if folders == []:
-            return None
-        if len(folders) == 1:
-            self.name = folders[0]['name']
-            return folders[0]
-        if len(folders) > 1:
-            raise RuntimeError('There should be at most one folder with displayName "Workspaces" in the organization. found: {0}'.format(len(folders)))
-
-    def access_control(self, credentials):
-        """
-        Apply IAM policy to the folder.
-
-        Args:
-            credentials: credential, the user authentification to make a call.
-
-        Returns:
-            dict, the IAM policy applied.
-
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            request = api.folders().setIamPolicy(resource=self.name, body=self.iam_bindings)
-            try:
-                result = request.execute()
-            except HttpError as e:
-                raise e
-        return None
-
-def generate_folder(credentials, setup, builder_email):
+def _create_folder(folder):
     """
-    Generate the root project and related resources.
+    Create a folder according to a declared folder.
 
     Args:
-        credentials: credential, the user authentification to make a call.
-        parent: string, the name of the organisation hosting the project.
-        executive_group: string, the email address of the group for executives
-            for the organization.
-        builder_email: string, the email address of the builder service
-            account.
+        folder: google.cloud.resourcemanager_v3.types.Folder, the declared
+            folder.
 
     Returns:
-        WorkspaceFolder, the project created.
+        google.cloud.resourcemanager_v3.types.Folder, the folder created from
+            the operation.
     """
-    folder = WorkspaceFolder(
-        setup=setup,
-        builder_email=builder_email
+    client = resourcemanager_v3.FoldersClient()
+    request = resourcemanager_v3.CreateFolderRequest(folder=folder)
+
+    operation = client.create_project(request=request)
+    response = operation.result()
+
+    print('folder created... ', end='')
+
+    return response
+
+def _get_folder(folder):
+    """
+    Get the existing folder in Google organization corresponding to the
+        declared folder.
+
+    Args:
+        folder: google.cloud.resourcemanager_v3.types.Folder, the delcared
+            folder.
+
+    Returns:
+        google.cloud.resourcemanager_v3.types.Folder, the existing folder if
+            it exists.
+
+    Raises:
+        ValueError, if there is no folder matching the declared folder.
+    """
+    existing = None
+
+    client = resourcemanager_v3.FoldersClient()
+    request = resourcemanager_v3.ListFoldersRequest(parent=folder.parent)
+
+    page_result = client.list_folders(request=request)
+
+    for response in page_result:
+        if folder.display_name == response.display_name:
+            existing = response
+
+    if existing is None:
+        raise ValueError(0)
+    
+    return existing
+
+def _control_access(folder, policy):
+    """
+    Apply IAM policy to the folder.
+
+    Args:
+        folder: google.cloud.resourcemanager_v3.types.Folder, the delcared
+            folder.
+        policy: dict, list all `bindings` to apply to the folder policy.
+    """
+    client = resourcemanager_v3.FoldersClient()
+    request = iam_policy_pb2.SetIamPolicyRequest(
+        resource=folder.name,
+        policy=policy
     )
-    diff = folder.diff(credentials=credentials)
-    if diff is None:
-        folder.create(credentials=credentials)
-        print('folder created... ', end='')
-    folder.access_control(credentials=credentials)
-    print('IAM policies set... ', end='')
-    print('folder is up-to-date.')
+
+    client.set_iam_policy(request=request)
+
+    print('IAM policy set... ', end='')
+
+    return None
+
+def generate_folder(setup, builder_email):
+    """
+    Generate the workspaces folder. Can either create, update or leave it as it
+        is. The folder is also updated with a new IAM policy.
+
+    Args:
+        setup: dict, the configuration used to build the root structure.
+        builder_email: string, the email of the builder service account.
+
+    Returns:
+        google.cloud.resourcemanager_v3.types.Folder, the generated folder.
+    """
+    exec_gr = 'group:{0}'.format(setup['google']['groups']['executive_group'])
+    builder_role = setup['workspaceFolder']['builderRole']
+    full_role_name = '{0}/roles/{1}'.format(setup['parent'], builder_role)
+    policy = {
+        'bindings': [
+            {
+                'members': [ exec_gr ],
+                'role': 'roles/resourcemanager.folderAdmin'
+            },
+            {
+                'members': ['serviceAccount:{0}'.format(builder_email)],
+                'role': full_role_name
+            }
+        ]
+    }
+
+    declared_folder = resourcemanager_v3.Project(
+        parent=setup['parent'],
+        display_name=setup['workspaceFolder']['displayName']
+    )
+
+    try:
+        folder = _get_folder(declared_folder)
+    except ValueError as e:
+        if e.args[0] == 0:
+            folder = _create_folder(declared_folder)
+
+    _control_access(folder=folder, policy=policy)
+
     return folder

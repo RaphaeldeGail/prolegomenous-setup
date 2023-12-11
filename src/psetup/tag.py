@@ -1,337 +1,368 @@
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-from psetup import operation
+from google.cloud import resourcemanager_v3
+from google.iam.v1 import iam_policy_pb2
+from google.protobuf import field_mask_pb2
 
-root_tag_key_description = '''Use this tag to target a project that will be
-used as a root project for the organization. Definition of a root project can
-be found at https://github.com/RaphaeldeGail/prolegomenous-setup'''
+def _create_key(key):
+    """
+    Create a tag key according to a declared key.
 
-true_tag_value_description = '''This value indicates that the project is a root
-of the organization. It should be only used for project resources and should be
-unique among an organization.'''
+    Args:
+        key: google.cloud.resourcemanager_v3.types.TagKey, the delcared tag key.
 
-class TagKey:
+    Returns:
+        google.cloud.resourcemanager_v3.types.TagKey, the tag key created from
+            the operation.
+    """
+    client = resourcemanager_v3.TagKeysClient()
+    request = resourcemanager_v3.CreateTagKeyRequest(tag_key=key)
 
-    def __init__(self, parent, description, short_name):
-        self.name = None
-        self.namespace = parent.split('/')[1] + '/' + short_name
-        self.data = {
-            'description': description,
-            'parent': parent,
-            'shortName': short_name
-        }
-        self.iam_bindings = { 'bindings': [] }
+    operation = client.create_tag_key(request=request)
+    response = operation.result()
+
+    print('key created... ', end='')
+
+    return response
+
+def _update_key(declared_key, existing_key):
+    """
+    Update an existing tag key compared to a declared key.
+
+    Args:
+        declared_key: google.cloud.resourcemanager_v3.types.TagKey, the
+            declared tag key.
+        existing_key: google.cloud.resourcemanager_v3.types.TagKey, the
+            existing tag key.
+
+    Returns:
+        google.cloud.resourcemanager_v3.types.TagKey, the tag key updated from
+            the operation.
+    """
+    mask = _diff(declared=declared_key, existing=existing_key)
+
+    # If there is non differences, return the original existing key.
+    if mask == []:
+        return existing_key
     
-    def create(self, credentials):
-        """
-        Create a tag key with google API call.
-
-        Args:
-            credentials: credentials, the user authentification to make a call.
-
-        Returns:
-            dict, the tag resulting from the operation.
-
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        # build the api for resource management
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            request = api.tagKeys().create(body=self.data)
-            try:
-                initial = request.execute()
-            except HttpError as e:
-                raise e
-            result = operation.watch(api=api, operation=initial)
-        if not 'response' in result:
-            raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
-        self.name = result['name']
-        return None
+    client = resourcemanager_v3.TagKeysClient()
+    update_mask = field_mask_pb2.FieldMask(paths=mask)
+    request = resourcemanager_v3.UpdateTagKeyRequest(
+        tag_key=declared_key,
+        update_mask=update_mask
+    )
     
-    def update(self, credentials):
-        """
-        Update a tag key with google API call.
+    operation = client.update_tag_key(request=request)
+    response = operation.result()
 
-        Args:
-            credentials: credential, the user authentification to make a call.
+    print('key updated... ', end='')
 
-        Returns:
-            dict, the tag resulting from the operation.
-        
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        # build the api for resource management
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            update_request = api.tagKeys().patch(name=self.name, body=self.data)
-            try:
-                initial = update_request.execute()
-            except HttpError as e:
-                raise e
-            result = operation.watch(api=api, operation=initial)
-        return None
+    return response
+
+def _get_key(key):
+    """
+    Get the existing tag in Google organization corresponding to the declared
+        tag key.
+
+    Args:
+        key: google.cloud.resourcemanager_v3.types.TagKey, the delcared tag key.
+
+    Returns:
+        google.cloud.resourcemanager_v3.types.TagKey, the existing tag key.
+
+    Raises:
+        ValueError, if there is no tag key matching the definition.
+    """
+    parent = key.parent
+    existing = None
+
+    client = resourcemanager_v3.TagKeysClient()
+    request = resourcemanager_v3.ListTagKeysRequest(parent=parent)
+
+    page_result = client.list_tag_keys(request=request)
+
+    for result in page_result:
+        if result.short_name == key.short_name:
+            existing = result
     
-    def diff(self, credentials):
-        """
-        Show the differences between the declared tag key and and corresponding
-            existing one.
-
-        Args:
-            credentials: credential, the user authentification to make a call.
-
-        Returns:
-            dict, the difference between declared and existing tag key, as a
-                dict. If there is no existing state, returns None.
-
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        # build the api for resource management
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            # TODO: use a list parsing to find the tag key
-            request = api.tagKeys().getNamespaced(name=self.namespace)
-            try:
-                result_tag = request.execute()
-            except HttpError as e:
-                if e.status_code != 403:
-                    raise e
-                return None
-        self.name = result_tag['name']
-        if result_tag['description'] != self.data['description']:
-            return { 'description': self.data['description'] }
-        return {}
+    if existing is None:
+        raise ValueError(0)
     
-    def access_control(self, credentials):
-        """
-        Apply IAM policy to the tag key.
+    return existing
 
-        Args:
-            credentials: credential, the user authentification to make a call.
+def _diff(declared, existing):
+    """
+    Show the differences between a declared and an existing tag key or value.
 
-        Returns:
-            dict, the IAM policy applied.
+    Args:
+        declared: [google.cloud.resourcemanager_v3.types.TagKey,
+            google.cloud.resourcemanager_v3.types.TagValue] the delcared tag
+            key or value.
+        existing: [google.cloud.resourcemanager_v3.types.TagKey,
+            google.cloud.resourcemanager_v3.types.TagValue] the existing tag
+            key or value.
 
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            request = api.tagKeys().setIamPolicy(resource=self.name, body=self.iam_bindings)
-            try:
-                result_policy = request.execute()
-            except HttpError as e:
-                raise e
-        return None
-
-class RootTagKey(TagKey):
-
-    def __init__(self, setup):
-        super().__init__(
-            parent=setup['parent'],
-            description=setup['rootTag']['description'],
-            short_name=setup['rootTag']['shortName']
-        )
-
-class WorkspaceTagKey(TagKey):
-
-    def __init__(self, setup, builder_email):
-        super().__init__(
-            parent=setup['parent'],
-            description=setup['workspaceTag']['description'],
-            short_name=setup['workspaceTag']['shortName']
-        )
-        self.iam_bindings =  {
-            'policy': {
-                'bindings': [
-                    {
-                        'members': ['serviceAccount:{0}'.format(builder_email)],
-                        'role': 'roles/resourcemanager.tagAdmin'
-                    }
-                ]
-            }
-        }
+    Returns:
+        list, the list of attributes to update to match existing and declared.
+    """
+    if existing.description == declared.description:
+        return []
     
-class RootTagValue:
+    return ['description']
 
-    def __init__(self, setup, parent, namespace):
-        self.name = None
-        self.data = {
-            'description': setup['trueValue']['description'],
-            'parent': parent,
-            'shortName': setup['trueValue']['shortName']
-        }
-        self.namespace = namespace + '/' + setup['trueValue']['shortName']
+def _create_value(value):
+    """
+    Create a tag value according to a declared value.
 
-    def create(self, credentials):
-        """
-        Create a tag value with google API call.
+    Args:
+        value: google.cloud.resourcemanager_v3.types.TagValue, the delcared tag
+            value.
 
-        Args:
-            credentials: credentials, the user authentification to make a call.
+    Returns:
+        google.cloud.resourcemanager_v3.types.TagValue, the tag value created
+            from the operation.
+    """
+    client = resourcemanager_v3.TagValuesClient()
+    request = resourcemanager_v3.CreateTagValueRequest(tag_value=value)
 
-        Returns:
-            dict, the tag value resulting from the operation.
+    operation = client.create_tag_value(request=request)
+    response = operation.result()
 
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        # build the api for resource management
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            create_request = api.tagValues().create(body=self.data)
-            try:
-                initial = create_request.execute()
-            except HttpError as e:
-                raise e
-            result = operation.watch(api=api, operation=initial)
-        if not 'response' in result:
-            raise RuntimeError('the operation result did not contain any response. result: {0}'.format(str(result)))
-        self.name = result['name']
-        return None
+    print('value created... ', end='')
 
-    def update(self, credentials):
-        """
-        Update a tag value with google API call.
+    return response
 
-        Args:
-            credentials: credential, the user authentification to make a call.
+def _update_value(declared_value, existing_value):
+    """
+    Update an existing tag value compared to a declared value.
 
-        Returns:
-            dict, the tag value resulting from the operation.
-        
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        # build the api for resource management
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            update_request = api.tagValues().patch(name=self.name, body=self.data)
-            try:
-                initial = update_request.execute()
-            except HttpError as e:
-                raise e
-            result = operation.watch(api=api, operation=initial)
-        return None
+    Args:
+        declared_value: google.cloud.resourcemanager_v3.types.TagValue, the
+            declared tag value.
+        existing_value: google.cloud.resourcemanager_v3.types.TagValue, the
+            existing tag value.
 
-    def diff(self, credentials):
-        """
-        Show the differences between the declared tag value and and
-            corresponding existing one.
+    Returns:
+        google.cloud.resourcemanager_v3.types.TagValue, the tag value updated
+            from the operation.
+    """
+    mask = _diff(declared=declared_value, existing=existing_value)
 
-        Args:
-            credentials: credential, the user authentification to make a call.
+    # If there is non differences, return the original existing value.
+    if mask == []:
+        return existing_value
 
-        Returns:
-            dict, the difference between declared and existing tag value, as a
-                dict. If there is no existing state, returns None.
+    client = resourcemanager_v3.TagValuesClient()
+    update_mask = field_mask_pb2.FieldMask(paths=mask)
+    request = resourcemanager_v3.UpdateTagValueRequest(
+        tag_value=declared_value,
+        update_mask=update_mask
+    )
+    
+    operation = client.update_tag_value(request=request)
+    response = operation.result()
 
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        # build the api for resource management
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            # TODO: use a list parsing to find the tag key
-            request = api.tagValues().getNamespaced(name=self.namespace)
-            try:
-                result_value = request.execute()
-            except HttpError as e:
-                if e.status_code != 403:
-                    raise e
-                return None
-        self.name = result_value['name']
-        if result_value['description'] != self.data['description']:
-            return { 'description': self.data['description'] }
-        return {}
+    print('value updated... ', end='')
 
-    def bind(self, credentials, project):
-        """
-        Bind the tag value to a project.
+    return response
 
-        Args:
-            credentials: credential, the user authentification to make a call.
-            project: string, the full resource name of the project. In of form:
-                projects/123
+def _get_value(value):
+    """
+    Get the existing tag value in Google organization corresponding to the
+        definition.
 
-        Returns:
-            dict, the tagBinding created.
+    Args:
+        value: google.cloud.resourcemanager_v3.types.TagValue, the delcared tag
+            value.
 
-        Raises:
-            HttpError, Raises an exception if the API call does not return a
-                successful HTTP response.
-        """
-        body = {
-            'parent': '//cloudresourcemanager.googleapis.com/{0}'.format(project),
-            'tagValue': self.name
-        }
-        # build the api for resource management
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            request = api.tagBindings().create(body=body)        
-            try:
-                initial = request.execute()
-            except HttpError as e:
-                raise e
-            result = operation.watch(api=api, operation=initial)
-        return None
+    Returns:
+        google.cloud.resourcemanager_v3.types.TagValue, the existing tag value.
 
-    def is_bound(self, credentials, project):
-        """
-        Indicate if the tag value is bound or not to a project.
+    Raises:
+        ValueError, if there is no tag value matching the definition.
+    """
+    parent = value.parent
+    existing = None
 
-        Args:
-            credentials: credential, the user authentification to make a call.
-            project: string, the full resource name of the project. In of form:
-                projects/123
+    client = resourcemanager_v3.TagValuesClient()
+    request = resourcemanager_v3.ListTagValuesRequest(parent=parent)
 
-        Returns:
-            bool, True if the project is bound to the tag value. False
-                otherwise.
-        """
-        # build the api for resource management
-        bindings = []
-        with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-            request = api.tagBindings().list(parent='//cloudresourcemanager.googleapis.com/{0}'.format(project))
-            while request is not None:
-                results = request.execute()
-                if 'tagBindings' in results:
-                    bindings.extend([ b['tagValue'] for b in results['tagBindings'] ])
-                request = api.tagBindings().list_next(request, results)
-        if self.name in bindings:
-            return True
-        return False
+    page_result = client.list_tag_values(request=request)
 
-def generate_root_tag(credentials, setup):
-    root_key = RootTagKey(setup=setup)
-    diff = root_key.diff(credentials=credentials)
-    if diff is None:
-        root_key.create(credentials=credentials)
-        print('tag key created... ', end='')
-    elif diff != {}:
-        root_key.update(credentials=credentials)
-        print('tag key updated... ', end='')
-    true_value = RootTagValue(setup=setup, parent=root_key.name, namespace=root_key.namespace)
-    diff = true_value.diff(credentials=credentials)
-    if diff is None:
-        true_value.create(credentials=credentials)
-        print('tag value created... ', end='')
-    elif diff != {}:
-        true_value.update(credentials=credentials)
-        print('tag value updated... ', end='')
-    print('tag value is up-to-date.')
-    return true_value
+    for result in page_result:
+        if result.short_name == value.short_name:
+            existing = result
+    
+    if existing is None:
+        raise ValueError(0)
+    
+    return existing
 
-def generate_workspace_tag(credentials, setup, builder_email):
-    workspace_key = WorkspaceTagKey(setup=setup, builder_email=builder_email)
-    diff = workspace_key.diff(credentials=credentials)
-    if diff is None:
-        workspace_key.create(credentials=credentials)
-        print('tag key created... ', end='')
-    elif diff != {}:
-        workspace_key.update(credentials=credentials)
-        print('tag key updated... ', end='')
-    workspace_key.access_control(credentials=credentials)
-    print('tag key is up-to-date.')
-    return workspace_key
+def _get_binding(binding):
+    """
+    Get the existing tag binding in project corresponding to the definition.
+
+    Args:
+        binding: google.cloud.resourcemanager_v3.types.TagBinding, the delcared
+            tag binding.
+
+    Returns:
+        binding: google.cloud.resourcemanager_v3.types.TagBinding, the existing
+            tag binding.
+
+    Raises:
+        ValueError, if there is no tag binding matching the definition.
+    """
+    existing = None
+
+    client = resourcemanager_v3.TagBindingsClient()
+    request = resourcemanager_v3.ListTagBindingsRequest(
+        parent=binding.parent
+    )
+
+    page_result = client.list_tag_bindings(request=request)
+
+    for response in page_result:
+        if binding.tag_value == response.tag_value:
+            existing = response
+
+    if existing is None:
+        raise ValueError(0)
+    
+    return existing
+
+def _create_binding(binding):
+    """
+    Bind the tag value to a project.
+
+    Args:
+        binding: google.cloud.resourcemanager_v3.types.TagBinding, the delcared
+            tag binding.
+
+    Returns:
+        google.cloud.resourcemanager_v3.types.TagBinding, the tag binding
+            created.
+    """
+    client = resourcemanager_v3.TagBindingsClient()
+    request = resourcemanager_v3.CreateTagBindingRequest(tag_binding=binding)
+
+    operation = client.create_tag_binding(request=request)
+    response = operation.result()
+
+    print('binding created... ', end='')
+
+    return response
+
+def _control_access(key, policy):
+    """
+    Apply IAM policy to the tag key.
+
+    Args:
+        key: google.cloud.resourcemanager_v3.types.TagKey, the delcared tag key.
+        policy: dict, list all `bindings` to apply to the tag policy.
+    """
+    client = resourcemanager_v3.TagKeysClient()
+    request = iam_policy_pb2.SetIamPolicyRequest(
+        resource=key.name,
+        policy=policy
+    )
+
+    client.set_iam_policy(request=request)
+
+    print('IAM policy set... ', end='')
+
+    return None    
+
+def generate_root_tag(setup, project):
+    """
+    Generate the root tag key and value. Can either create, update or leave it
+        as it is. The tag value is also updated with a binding.
+
+    Args:
+        setup: dict, the configuration used to build the root structure.
+        project: string, the name of the project to bind the tag value with.
+
+    Returns:
+        google.cloud.resourcemanager_v3.types.TagValue, the generated tag value.
+    """
+    fqn = '//cloudresourcemanager.googleapis.com/{0}'.format(project)
+
+    declared_key = resourcemanager_v3.TagKey(
+        parent=setup['parent'],
+        short_name=setup['rootTag']['shortName'],
+        description=setup['rootTag']['description'],
+    )
+    declared_value = resourcemanager_v3.TagValue(
+        short_name=setup['trueValue']['shortName'],
+        description=setup['trueValue']['description'],
+    )
+    declared_binding = resourcemanager_v3.TagBinding(
+        parent=fqn
+    )
+
+    try:
+        key = _get_key(declared_key)
+    except ValueError as e:
+        if e.args[0] == 0:
+            key = _create_key(declared_key)
+        else:
+            raise e
+
+    key = _update_key(declared_key, key)
+
+    declared_value.parent = key.name
+
+    try:
+        value = _get_value(declared_value)
+    except ValueError as e:
+        if e.args[0] == 0:
+            value = _create_value(value)
+        else:
+            raise e
+
+    value = _update_value(declared_value, value)
+
+    declared_binding.tag_value = value.name 
+
+    try:
+        _get_binding(declared_binding)
+    except ValueError as e:
+        if e.args[0] == 0:
+            _create_binding(declared_binding)
+        else:
+            raise e
+
+    return value
+
+def generate_workspace_tag(setup, builder_email):
+    """
+    Generate the workspace tag key. Can either create, update or leave it
+        as it is. The tag is also updated with a new IAM policy.
+
+    Args:
+        setup: dict, the configuration used to build the root structure.
+        builder_email: string, the email of the builder service account.
+
+    Returns:
+        google.cloud.resourcemanager_v3.types.TagKey, the generated tag value.
+    """
+    account = 'serviceAccount:{0}'.format(builder_email)
+    role = 'roles/resourcemanager.tagAdmin'
+    policy = {'bindings': [{'members': [account],'role': role}]}
+
+    declared_key = resourcemanager_v3.TagKey(
+        parent=setup['parent'],
+        short_name=setup['workspaceTag']['shortName'],
+        description=setup['workspaceTag']['description'],
+    )
+    try:
+        key = _get_key(declared_key)
+    except ValueError as e:
+        if e.args[0] == 0:
+            key = _create_key(declared_key)
+        else:
+            raise e
+
+    key = _update_key(declared_key, key)
+
+    _control_access(key=key, policy=policy)
+
+    return key

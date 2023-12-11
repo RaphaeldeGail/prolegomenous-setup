@@ -56,7 +56,7 @@ class ServiceAccount:
         except KeyError:
             pass
         try:
-            self.display_name = body['display_name']
+            self.display_name = body['displayName']
         except KeyError:
             pass
 
@@ -64,7 +64,9 @@ class ServiceAccount:
     def name(self):
         """Returns the fully qualified name of the instance.
         """
-        fmt = 'projects/{projectId}/serviceAccounts/{name}@{projectId}.iam.gserviceaccount.com'.format(projectId=self.project, name=self.id)
+        project_id = 'projects/{0}'.format(self.project)
+        sa = '{0}@{1}.iam.gserviceaccount.com'.format(self.id, self.project)
+        fmt = '{0}/serviceAccounts/{1}'.format(project_id, sa)
         return fmt
     
 def _create_sa(sa):
@@ -75,8 +77,7 @@ def _create_sa(sa):
         sa: ServiceAccount, the delcared service account.
 
     Returns:
-        ServiceAccount, the service account created from the
-            operation.
+        ServiceAccount, the service account created from the operation.
     """
     # build the create request body
     body = {
@@ -88,7 +89,8 @@ def _create_sa(sa):
     }
 
     existing_sa = ServiceAccount(
-        name=sa.name
+        id=sa.id,
+        project=sa.project
     )
 
     with client as api:
@@ -126,7 +128,12 @@ def _update_sa(declared_sa, existing_sa):
         'updateMask': ','.join(mask)
     }
 
-    # If there is non differences, return the original existing key.
+    existing_sa = ServiceAccount(
+        id=declared_sa.id,
+        project=declared_sa.project
+    )
+
+    # If there is non differences, return the original existing account.
     if mask == []:
         return existing_sa
     
@@ -169,7 +176,7 @@ def _get_sa(sa):
         declared service account.
 
     Args:
-        pool: ServiceAccount, the delcared service account.
+        sa: ServiceAccount, the delcared service account.
 
     Returns:
         ServiceAccount, the existing service account.
@@ -205,28 +212,21 @@ def _get_sa(sa):
 
     return existing_sa
 
-    
-def access_control(self, credentials):
+def _control_access(sa, policy):
     """
-    Apply IAM policy to the service account.
+    Apply IAM policy to the tag key.
 
     Args:
-        credentials: credential, the user authentification to make a call.
-
-    Returns:
-        dict, the IAM policy applied.
-
-    Raises:
-        HttpError, Raises an exception if the API call does not return a
-            successful HTTP response.
+        sa: ServiceAccount, the delcared service account.
+        policy: dict, list all `bindings` to apply to the account policy.
     """
-    with build('iam', 'v1', credentials=credentials).projects().serviceAccounts() as api:
-        request = api.setIamPolicy(resource=self.name, body=self.iam_bindings)
-        try:
-            result = request.execute()
-        except HttpError as e:
-            raise e
-    return None
+    with client as api:
+        request = api.setIamPolicy(resource=sa.name, body=policy)
+        request.execute()
+
+    print('IAM policy set... ', end='')
+
+    return None  
 
 def generate_service_account(setup, parent, poolId):
     """Generate the builder servie account for the root structure.
@@ -243,19 +243,19 @@ def generate_service_account(setup, parent, poolId):
         ServiceAccount, the generated service account.
     """
     id = setup['builderAccount']['name']
+    exec_gr = 'group:{0}'.format(setup['google']['groups']['executive_group'])
+    wrk_id = setup['terraform']['workspace_project']
+    pool = 'principalSet://iam.googleapis.com/{0}'.format(poolId)
+    principal = '{0}/attribute.terraform_project_id/{1}'.format(pool, wrk_id)
     policy = {
         'policy': {
             'bindings': [
                 {
-                    'members': [
-                        'group:{0}'.format(setup['google']['groups']['executive_group']),
-                    ],
+                    'members': [ exec_gr ],
                     'role': 'roles/iam.serviceAccountTokenCreator',
                 },
                 {
-                    'members': [
-                        'principalSet://iam.googleapis.com/{0}/attribute.terraform_project_id/{1}'.format(poolId, setup['terraform']['workspace_project']),
-                    ],
+                    'members': [ principal ],
                     'role': 'roles/iam.workloadIdentityUser',
                 },
             ],
@@ -279,6 +279,6 @@ def generate_service_account(setup, parent, poolId):
 
     sa = _update_sa(declared_sa, sa)
 
-    #service_account.access_control(credentials=credentials)
+    _control_access(sa, policy)
 
     return sa

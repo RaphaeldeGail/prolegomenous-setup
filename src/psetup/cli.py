@@ -4,18 +4,9 @@ def main():
 
     """
     from time import strftime, localtime
-    from google.auth import default
     from psetup import config, project, tag, workload, service_account, folder
 
-    ## the scopes for all google API calls
-    scopes = ['https://www.googleapis.com/auth/cloud-platform']
-
-    # WARNING: the quota_project_id can not be set when calling the credentials
-    # default() method and has to be explicitly overidden with
-    # the with_quota_project(None) method.
-    credentials = default(scopes=scopes)[0].with_quota_project(None)
-
-    setup = config.from_yaml(credentials=credentials)
+    setup = config.from_yaml()
     timestamp = strftime("%Y-%m-%dT%H-%M", localtime())
     print(timestamp)
 
@@ -23,32 +14,40 @@ def main():
     root_project = project.generate_root(setup=setup)
     project_name = root_project.name
     print('DONE')
+
     print('generating root tag... ', end='')
     tag.generate_root_tag(setup=setup, project=project_name)
     print('DONE')
+
     print('generating workload identity pool... ', end='')
     org_pool = workload.generate_terraform_provider(
         setup=setup,
         project=project_name
     )
     print('DONE')
+
     print('generating service account... ', end='')
     builder_account = service_account.generate_service_account(
         setup=setup,
         parent=root_project.project_id,
         poolId=org_pool.name
     )
-    print('DONE')
     builder_email = builder_account.name.split('/serviceAccounts/')[1]
+    print('DONE')
+    
     print('generating workspace tag... ', end='')
     workspace_tag = tag.generate_workspace_tag(
         setup=setup,
         builder_email=builder_email
     )
     print('DONE')
+
     print('generating workspace folder... ', end='')
     workspace_folder = folder.generate_folder(
         setup=setup,
         builder_email=builder_email
     )
     print('DONE')
+
+    print('Run the command:')
+    print('export BUILDER_EMAIL="{0}"; psetup-billing'.format(builder_email))

@@ -19,7 +19,8 @@ setup(
         python_requires='>=3.9',
         entry_points={
             'console_scripts': [
-                'psetup=psetup.cli:main'
+                'psetup=psetup.cli:main',
+                'psetup-billing=psetup.billing_cli:main'
             ],
         }
 )

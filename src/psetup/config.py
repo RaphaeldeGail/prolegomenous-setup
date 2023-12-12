@@ -1,6 +1,6 @@
 from yaml import safe_load
 from schema import Schema, SchemaError
-from googleapiclient.discovery import build
+from google.cloud import resourcemanager_v3
 from sys import prefix
 from os import path
 
@@ -24,7 +24,7 @@ def override(dict1, dict2):
             dict1[key] = dict2[key]
     return dict1
 
-def from_yaml(credentials):
+def from_yaml():
     """
     Fetch configuration entries for a particular root structure. The entries
     are supposed to be stored in YAML files.
@@ -83,9 +83,15 @@ def from_yaml(credentials):
     ## the organization name as string 'organizations/{org_id}'
     parent = 'organizations/{org_id}'.format(org_id=org_id)
     environment['parent'] = parent
-    with build('cloudresourcemanager', 'v3', credentials=credentials) as api:
-        org_name = api.organizations().get(name=parent).execute()['displayName']
-    environment['google']['org_name'] = org_name
+
+    client = resourcemanager_v3.OrganizationsClient()
+    request = resourcemanager_v3.GetOrganizationRequest(
+        name=parent,
+    )
+
+    response = client.get_organization(request=request)
+
+    environment['google']['org_name'] = response.display_name
     environment.update(config)
 
     return environment

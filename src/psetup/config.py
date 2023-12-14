@@ -1,3 +1,14 @@
+"""Render a complete set of variables for the root structure.
+
+The `config` module will look for a standard configuration file and a specific
+environment file, both in YAML format, to generate the setup values to build
+the root structure.
+
+Typical usage example:
+
+  setup = config.from_yaml()
+"""
+
 from yaml import safe_load
 from schema import Schema, SchemaError
 from google.cloud import resourcemanager_v3
@@ -18,7 +29,7 @@ def override(dict1, dict2):
     for key,value in dict1.items():
         if not key in dict2:
             continue
-        if type(value) is dict:
+        if isinstance(value, dict):
             dict1[key] = override(dict1[key], dict2[key])
         else:
             dict1[key] = dict2[key]
@@ -29,38 +40,35 @@ def from_yaml():
     Fetch configuration entries for a particular root structure. The entries
     are supposed to be stored in YAML files.
 
-    Args:
-        credentials: credentials, the user authentification to make a call.
-
     Returns:
         dict, the full configuration for the root structure.
     """
     # the schema for the environment file in YAML
     environment_schema = Schema({
-        "google": {
-            "organization": str,
-            "billing_account": str,
-            "ext_admin_user": str,
-            "groups": {
-                "finops_group": str,
-                "admins_group": str,
-                "policy_group": str,
-                "executive_group": str
+        'google': {
+            'organization': str,
+            'billing_account': str,
+            'ext_admin_user': str,
+            'groups': {
+                'finops_group': str,
+                'admins_group': str,
+                'policy_group': str,
+                'executive_group': str
             }
         },
-        "terraform": {
-            "organization": str,
-            "workspace_project": str
+        'terraform': {
+            'organization': str,
+            'workspace_project': str
         }
     })
 
     # default file for configuration of the structure root
-    default = '{0}/config/psetup/default.yaml'.format(prefix)
+    default = f'{prefix}/config/psetup/default.yaml'
 
     if not path.isfile('environment.yaml'):
         raise RuntimeError('The file "environment.yaml" could not be found.')
     # load the environment from setup.yaml
-    with open('environment.yaml', 'r') as f:
+    with open('environment.yaml', 'r', encoding='utf-8') as f:
         environment = safe_load(f)
     # validate the environment YAML against the schema
     try:
@@ -69,19 +77,19 @@ def from_yaml():
         raise se
 
     if not path.isfile(default):
-        raise RuntimeError('The file "{0}" could not be found.'.format(default))
-    with open(default, 'r') as f:
+        raise RuntimeError(f'The file "{default}" could not be found.')
+    with open(default, 'r', encoding='utf-8') as f:
         config = safe_load(f)
 
     if path.isfile('config.yaml'):
-        with open('config.yaml', 'r') as f:
+        with open('config.yaml', 'r', encoding='utf-8') as f:
             update = safe_load(f)
         config = override(config, update)
 
     # the organization number
     org_id = environment['google']['organization']
     ## the organization name as string 'organizations/{org_id}'
-    parent = 'organizations/{org_id}'.format(org_id=org_id)
+    parent = f'organizations/{org_id}'
     environment['parent'] = parent
 
     client = resourcemanager_v3.OrganizationsClient()

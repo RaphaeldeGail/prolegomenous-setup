@@ -1,3 +1,13 @@
+"""Generate a folder idempotently.
+
+Can apply a specific configuration for a folder and create or update it in
+order to match the configuration.
+
+Typical usage example:
+
+  folder = generate_folder(setup, builder_email)
+"""
+
 from google.cloud import resourcemanager_v3
 from google.iam.v1 import iam_policy_pb2
 
@@ -52,7 +62,7 @@ def _get_folder(folder):
 
     if existing is None:
         raise ValueError(0)
-    
+
     return existing
 
 def _control_access(folder, policy):
@@ -88,9 +98,9 @@ def generate_folder(setup, builder_email):
     Returns:
         google.cloud.resourcemanager_v3.types.Folder, the generated folder.
     """
-    exec_gr = 'group:{0}'.format(setup['google']['groups']['executive_group'])
+    exec_gr = f'group:{setup["google"]["groups"]["executive_group"]}'
     builder_role = setup['workspaceFolder']['builderRole']
-    full_role_name = '{0}/roles/{1}'.format(setup['parent'], builder_role)
+    full_role_name = f'{setup["parent"]}/roles/{builder_role}'
     policy = {
         'bindings': [
             {
@@ -98,7 +108,7 @@ def generate_folder(setup, builder_email):
                 'role': 'roles/resourcemanager.folderAdmin'
             },
             {
-                'members': ['serviceAccount:{0}'.format(builder_email)],
+                'members': [f'serviceAccount:{builder_email}'],
                 'role': full_role_name
             }
         ]

@@ -1,3 +1,13 @@
+"""Manipulate long-running operations for Google Cloud resources.
+
+Can wait for an operation to complete before returning the result of the
+completed operation.
+
+Typical usage example:
+
+  result = operation.watch(api=api, operation=operation)
+"""
+
 from time import sleep
 
 # error message if creation status times out
@@ -38,11 +48,11 @@ def watch(api, operation, period=5, timeout=60):
             not contain a response entry.
     """
     if ( not 'name' in operation ) and ( not 'done' in operation ):
-         raise RuntimeError(message_error)
-    
+        raise RuntimeError(message_error)
+
     if ( not 'name' in operation ) and ( operation['done'] ):
         return operation
-        
+
     request = api.operations().get(name=operation['name'])
     # this loop will check for updates every (period=5) seconds during
     # (timeout=60) seconds.
@@ -67,7 +77,7 @@ def watch(api, operation, period=5, timeout=60):
     # after the operation 'done' is True, there should be either a response or
     # error entry.
     if 'error' in operation:
-        raise RuntimeError('operation ended in error: {0}'.format(str(operation)))
+        raise RuntimeError(f'operation ended in error: {str(operation)}')
 
     if not 'response' in operation:
         return {}

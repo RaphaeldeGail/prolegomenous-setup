@@ -1,3 +1,9 @@
+"""Main module for the psetup client.
+
+This module will orchestrate between all resources creation on Google Cloud and
+display the command to run for the psetup-billing client subsequently.
+"""
+
 def main():
     """
     Main entry for the psetup client.
@@ -7,7 +13,7 @@ def main():
     from psetup import config, project, tag, workload, service_account, folder
 
     setup = config.from_yaml()
-    timestamp = strftime("%Y-%m-%dT%H-%M", localtime())
+    timestamp = strftime('%Y-%m-%dT%H-%M', localtime())
     print(timestamp)
 
     print('generating root project... ', end='')
@@ -34,20 +40,20 @@ def main():
     )
     builder_email = builder_account.name.split('/serviceAccounts/')[1]
     print('DONE')
-    
+
     print('generating workspace tag... ', end='')
-    workspace_tag = tag.generate_workspace_tag(
+    tag.generate_workspace_tag(
         setup=setup,
         builder_email=builder_email
     )
     print('DONE')
 
     print('generating workspace folder... ', end='')
-    workspace_folder = folder.generate_folder(
+    folder.generate_folder(
         setup=setup,
         builder_email=builder_email
     )
     print('DONE')
 
     print('Run the command:')
-    print('export BUILDER_EMAIL="{0}"; psetup-billing'.format(builder_email))
+    print(f'export BUILDER_EMAIL="{builder_email}"; psetup-billing')

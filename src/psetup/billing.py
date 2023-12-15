@@ -1,3 +1,13 @@
+"""Generate a billing account idempotently.
+
+Can apply a specific configuration for a billing account and create or update
+it in order to match the configuration.
+
+Typical usage example:
+
+  generate_account(setup, builder_email)
+"""
+
 from google.iam.v1 import iam_policy_pb2
 from google.cloud import billing_v1
 
@@ -33,8 +43,8 @@ def generate_account(setup, builder_email):
     """
     # Sets the variables for generating the billing account
 
-    mail = 'serviceAccount:{0}'.format(builder_email)
-    bill = 'billingAccounts/{0}'.format(setup['google']['billing_account'])
+    mail = f'serviceAccount:{builder_email}'
+    bill = f'billingAccounts/{setup["google"]["billing_account"]}'
     policy = {
         'bindings': [
             {'members': [mail], 'role': 'roles/billing.user'},

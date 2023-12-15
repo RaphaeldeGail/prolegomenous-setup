@@ -1,3 +1,9 @@
+"""Main module for the psetup-billing client.
+
+This module will orchestrate between all financial resources creation on Google
+Cloud .
+"""
+
 def main():
     """
     Main entry for the psetup-billing client.
@@ -8,11 +14,11 @@ def main():
     from os import getenv
 
     setup = config.from_yaml()
-    timestamp = strftime("%Y-%m-%dT%H-%M", localtime())
+    timestamp = strftime('%Y-%m-%dT%H-%M', localtime())
     print(timestamp)
 
     builder_email = getenv('BUILDER_EMAIL')
-    
+
     if builder_email is None:
         raise ValueError('BUILDER_EMAIL environment variable empty')
 

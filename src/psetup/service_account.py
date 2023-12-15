@@ -1,5 +1,14 @@
+"""Generate a builder service account idempotently.
+
+Can apply a specific configuration for a service account and create or update
+it in order to match the configuration.
+
+Typical usage example:
+
+  service_account = generate_service_account(setup, parent, poolId)
+"""
+
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
 # base client for all actions on workload identity pools and providers
 client = build('iam', 'v1').projects().serviceAccounts()
@@ -8,8 +17,8 @@ class ServiceAccount:
     """A class to represent a service account in Google Cloud project.
 
     Attributes:
-        id: string, the ID for the service account, which becomes the final
-            component of the resource name.
+        account_id: string, the ID for the service account, which becomes the
+            final component of the resource name.
         description: string, a description of the service account.
         display_name: string, a user-friendly name for the service account.
         project: string, the ID of the project to create this account in.
@@ -17,7 +26,7 @@ class ServiceAccount:
     """
 
     def __init__(self,
-        id=None,
+        account_id=None,
         project=None,
         display_name=None,
         description=None
@@ -25,13 +34,13 @@ class ServiceAccount:
         """Initializes the instance based on attributes.
 
         Args:
-            id: string, the ID for the service account, which becomes the final
-                component of the resource name.
+            account_id: string, the ID for the service account, which becomes
+                the final component of the resource name.
             project: string, the ID of the project to create this account in.
             display_name: string, a user-friendly name for the service account.
             description: string, a description of the service account.
         """
-        self.id = id
+        self.account_id = account_id
         self.project = project
         self.description = description
         self.display_name = display_name
@@ -44,11 +53,13 @@ class ServiceAccount:
                 instance attributes.
         """
         try:
-            self.id = body['name'].split('/serviceAccounts/')[-1].split('@')[0]
+            email = body['name'].split('/serviceAccounts/')[-1]
+            self.account_id = email.split('@')[0]
         except KeyError:
             pass
         try:
-            self.project = body['name'].split('/serviceAccounts/')[0].split('/')[-1]
+            full_name = body['name'].split('/serviceAccounts/')[0]
+            self.project = full_name.split('/')[-1]
         except KeyError:
             pass
         try:
@@ -64,11 +75,11 @@ class ServiceAccount:
     def name(self):
         """Returns the fully qualified name of the instance.
         """
-        project_id = 'projects/{0}'.format(self.project)
-        sa = '{0}@{1}.iam.gserviceaccount.com'.format(self.id, self.project)
-        fmt = '{0}/serviceAccounts/{1}'.format(project_id, sa)
+        project_id = f'projects/{self.project}'
+        sa = f'{self.account_id}@{self.project}.iam.gserviceaccount.com'
+        fmt = f'{project_id}/serviceAccounts/{sa}'
         return fmt
-    
+
 def _create_sa(sa):
     """
     Create a service account according to a declared one.
@@ -81,7 +92,7 @@ def _create_sa(sa):
     """
     # build the create request body
     body = {
-        'accountId': sa.id,
+        'accountId': sa.account_id,
         'serviceAccount': {
             'description': sa.description,
             'displayName': sa.display_name
@@ -89,13 +100,13 @@ def _create_sa(sa):
     }
 
     existing_sa = ServiceAccount(
-        id=sa.id,
+        account_id=sa.account_id,
         project=sa.project
     )
 
     with client as api:
         request = api.create(
-            name='projects/{0}'.format(sa.project),
+            name=f'projects/{sa.project}',
             body=body,
         )
 
@@ -129,14 +140,14 @@ def _update_sa(declared_sa, existing_sa):
     }
 
     existing_sa = ServiceAccount(
-        id=declared_sa.id,
+        account_id=declared_sa.account_id,
         project=declared_sa.project
     )
 
     # If there is non differences, return the original existing account.
-    if mask == []:
+    if not mask:
         return existing_sa
-    
+
     with client as api:
         request = api.patch(
             name=declared_sa.name,
@@ -165,9 +176,9 @@ def _diff(declared, existing):
     mask = []
 
     for attr in existing.__dict__.keys():
-        if existing.__getattribute__(attr) != declared.__getattribute__(attr):
+        if getattr(existing, attr) != getattr(declared, attr):
             mask.append(attr)
-    
+
     return mask
 
 def _get_sa(sa):
@@ -185,11 +196,11 @@ def _get_sa(sa):
         ValueError, if there is no service account matching the
             definition.
     """
-    parent = 'projects/{0}'.format(sa.project)
+    parent = f'projects/{sa.project}'
     existing = None
 
     existing_sa = ServiceAccount(
-        id=sa.id,
+        account_id=sa.account_id,
         project=sa.project
     )
 
@@ -198,16 +209,16 @@ def _get_sa(sa):
 
         while request is not None:
             results = request.execute()
-            
+
             for result in results['accounts']:
                 if result['name'] == sa.name:
                     existing = result
 
             request = api.list_next(request, results)
-    
+
     if existing is None:
         raise ValueError(0)
-    
+
     existing_sa.update_from_dict(existing)
 
     return existing_sa
@@ -226,9 +237,9 @@ def _control_access(sa, policy):
 
     print('IAM policy set... ', end='')
 
-    return None  
+    return None
 
-def generate_service_account(setup, parent, poolId):
+def generate_service_account(setup, parent, pool_id):
     """Generate the builder servie account for the root structure.
     
     Can either create, update or leave it as it is.
@@ -236,17 +247,17 @@ def generate_service_account(setup, parent, poolId):
     Args:
         setup: dict, the configuration used to build the root structure.
         parent: string, the ID of the project hosting the service account.
-        poolId: string, the name of the workload identity pool that can
+        pool_id: string, the name of the workload identity pool that can
             delegate access to the service account.
 
     Returns:
         ServiceAccount, the generated service account.
     """
-    id = setup['builderAccount']['name']
-    exec_gr = 'group:{0}'.format(setup['google']['groups']['executive_group'])
+    account_id = setup['builderAccount']['name']
+    exec_gr = f'group:{setup["google"]["groups"]["executive_group"]}'
     wrk_id = setup['terraform']['workspace_project']
-    pool = 'principalSet://iam.googleapis.com/{0}'.format(poolId)
-    principal = '{0}/attribute.terraform_project_id/{1}'.format(pool, wrk_id)
+    pool = f'principalSet://iam.googleapis.com/{pool_id}'
+    principal = f'{pool}/attribute.terraform_project_id/{wrk_id}'
     policy = {
         'policy': {
             'bindings': [
@@ -263,7 +274,7 @@ def generate_service_account(setup, parent, poolId):
     }
 
     declared_sa = ServiceAccount(
-        id=id,
+        account_id=account_id,
         project=parent,
         display_name=setup['builderAccount']['displayName'],
         description=setup['builderAccount']['description']

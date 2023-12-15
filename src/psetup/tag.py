@@ -1,3 +1,14 @@
+"""Generate a tag key and value idempotently.
+
+Can apply a specific configuration for a tag and create or update it in
+order to match the configuration.
+
+Typical usage example:
+
+  generate_root_tag(setup, project)
+  generate_workspace_tag(setup, builder_email)
+"""
+
 from google.cloud import resourcemanager_v3
 from google.iam.v1 import iam_policy_pb2
 from google.protobuf import field_mask_pb2
@@ -40,16 +51,16 @@ def _update_key(declared_key, existing_key):
     mask = _diff(declared=declared_key, existing=existing_key)
 
     # If there is non differences, return the original existing key.
-    if mask == []:
+    if not mask:
         return existing_key
-    
+
     client = resourcemanager_v3.TagKeysClient()
     update_mask = field_mask_pb2.FieldMask(paths=mask)
     request = resourcemanager_v3.UpdateTagKeyRequest(
         tag_key=declared_key,
         update_mask=update_mask
     )
-    
+
     operation = client.update_tag_key(request=request)
     response = operation.result()
 
@@ -82,10 +93,10 @@ def _get_key(key):
     for result in page_result:
         if result.short_name == key.short_name:
             existing = result
-    
+
     if existing is None:
         raise ValueError(0)
-    
+
     return existing
 
 def _diff(declared, existing):
@@ -105,7 +116,7 @@ def _diff(declared, existing):
     """
     if existing.description == declared.description:
         return []
-    
+
     return ['description']
 
 def _create_value(value):
@@ -147,7 +158,7 @@ def _update_value(declared_value, existing_value):
     mask = _diff(declared=declared_value, existing=existing_value)
 
     # If there is non differences, return the original existing value.
-    if mask == []:
+    if not mask:
         return existing_value
 
     client = resourcemanager_v3.TagValuesClient()
@@ -156,7 +167,7 @@ def _update_value(declared_value, existing_value):
         tag_value=declared_value,
         update_mask=update_mask
     )
-    
+
     operation = client.update_tag_value(request=request)
     response = operation.result()
 
@@ -190,10 +201,10 @@ def _get_value(value):
     for result in page_result:
         if result.short_name == value.short_name:
             existing = result
-    
+
     if existing is None:
         raise ValueError(0)
-    
+
     return existing
 
 def _get_binding(binding):
@@ -226,7 +237,7 @@ def _get_binding(binding):
 
     if existing is None:
         raise ValueError(0)
-    
+
     return existing
 
 def _create_binding(binding):
@@ -269,7 +280,7 @@ def _control_access(key, policy):
 
     print('IAM policy set... ', end='')
 
-    return None    
+    return None
 
 def generate_root_tag(setup, project):
     """
@@ -283,7 +294,7 @@ def generate_root_tag(setup, project):
     Returns:
         google.cloud.resourcemanager_v3.types.TagValue, the generated tag value.
     """
-    fqn = '//cloudresourcemanager.googleapis.com/{0}'.format(project)
+    fqn = f'//cloudresourcemanager.googleapis.com/{project}'
 
     declared_key = resourcemanager_v3.TagKey(
         parent=setup['parent'],
@@ -320,7 +331,7 @@ def generate_root_tag(setup, project):
 
     value = _update_value(declared_value, value)
 
-    declared_binding.tag_value = value.name 
+    declared_binding.tag_value = value.name
 
     try:
         _get_binding(declared_binding)
@@ -344,7 +355,7 @@ def generate_workspace_tag(setup, builder_email):
     Returns:
         google.cloud.resourcemanager_v3.types.TagKey, the generated tag value.
     """
-    account = 'serviceAccount:{0}'.format(builder_email)
+    account = f'serviceAccount:{builder_email}'
     role = 'roles/resourcemanager.tagAdmin'
     policy = {'bindings': [{'members': [account],'role': role}]}
 

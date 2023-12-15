@@ -1,3 +1,13 @@
+"""Generate a workload identity pool idempotently.
+
+Can apply a specific configuration for a workload identity pool and create or
+update it in order to match the configuration.
+
+Typical usage example:
+
+    org_pool = workload.generate_terraform_provider(setup, project_name)
+"""
+
 from googleapiclient.discovery import build
 from psetup import operation
 
@@ -8,7 +18,7 @@ class WorkloadIdentityPool:
     """A class to represent a workload identity pool in Google Cloud.
 
     Attributes:
-        id: string, the ID for the pool, which becomes the final component
+        pool_id: string, the ID for the pool, which becomes the final component
             of the resource name.
         project: string, the name of the project to create this pool in.
         display_name: string, a user-friendly name for the pool.
@@ -18,7 +28,7 @@ class WorkloadIdentityPool:
     """
 
     def __init__(self,
-        id=None,
+        pool_id=None,
         project=None,
         display_name=None,
         description=None
@@ -26,13 +36,13 @@ class WorkloadIdentityPool:
         """Initializes the instance based on attributes.
 
         Args:
-            id: string, the ID for the provider, which becomes the final
+            pool_id: string, the ID for the provider, which becomes the final
                 component of the resource name.
             project: string, the name of the project to create this pool in.
             display_name: string, a user-friendly name for the pool.
             description: string, a description of the pool.
         """
-        self.id = id
+        self.pool_id = pool_id
         self.project = project
         self.display_name = display_name
         self.description = description
@@ -47,7 +57,7 @@ class WorkloadIdentityPool:
                 instance attributes.
         """
         try:
-            self.id = body['name'].split('/workloadIdentityPools/')[-1]
+            self.pool_id = body['name'].split('/workloadIdentityPools/')[-1]
         except KeyError:
             pass
         try:
@@ -67,22 +77,22 @@ class WorkloadIdentityPool:
     def name(self):
         """Returns the fully qualified name of the instance.
         """
-        fmt = '{0}/workloadIdentityPools/{1}'.format(self.parent, self.id)
+        fmt = f'{self.parent}/workloadIdentityPools/{self.pool_id}'
         return fmt
 
     @property
     def parent(self):
         """Returns the fully qualified name of the parent of the instance.
         """
-        fmt = '{0}/locations/global'.format(self.project)
+        fmt = f'{self.project}/locations/global'
         return fmt
 
 class WorkloadIdentityProvider:
     """A class to represent a workload identity pool provider in Google Cloud.
 
     Attributes:
-        id: string, the ID for the provider, which becomes the final component
-            of the resource name.
+        provider_id: string, the ID for the provider, which becomes the final
+            component of the resource name.
         parent: string, the name of the pool to create this provider in.
         attribute_condition: string, the condition for the tokens to match.
         attribute_mapping: dict, a map of attributes between tokens.
@@ -95,7 +105,7 @@ class WorkloadIdentityProvider:
 
     def __init__(
         self,
-        id=None,
+        provider_id=None,
         parent=None,
         attribute_condition=None,
         attribute_mapping=None,
@@ -106,8 +116,8 @@ class WorkloadIdentityProvider:
         """Initializes the instance based on attributes.
 
         Args:
-            id: string, the ID for the provider, which becomes the final
-                component of the resource name.
+            provider_id: string, the ID for the provider, which becomes the
+                final component of the resource name.
             parent: string, the name of the pool to create this provider in.
             attribute_condition: string, the condition for the tokens to match.
             attribute_mapping: dict, a map of attributes between tokens.
@@ -115,7 +125,7 @@ class WorkloadIdentityProvider:
             display_name: string, a user-friendly name for the provider.
             oidc: dict, parameters for the openID connect protocol.
         """
-        self.id = id
+        self.provider_id = provider_id
         self.parent = parent
         self.attribute_condition = attribute_condition
         self.attribute_mapping = attribute_mapping
@@ -132,7 +142,7 @@ class WorkloadIdentityProvider:
                 instance attributes.
         """
         try:
-            self.id = body['name'].split('/providers/')[-1]
+            self.provider_id = body['name'].split('/providers/')[-1]
         except KeyError:
             pass
         try:
@@ -164,7 +174,7 @@ class WorkloadIdentityProvider:
     def name(self):
         """Returns the fully qualified name of the instance.
         """
-        fmt = '{0}/providers/{1}'.format(self.parent, self.id)
+        fmt = f'{self.parent}/providers/{self.provider_id}'
         return fmt
 
 
@@ -187,14 +197,15 @@ def _create_pool(pool):
     }
 
     existing_pool = WorkloadIdentityPool(
-        name=pool.name
+        pool_id=pool.pool_id,
+        project=pool.project
     )
 
     with client as api:
         request = api.create(
             parent=pool.parent,
             body=body,
-            workloadIdentityPoolId=pool.id
+            workloadIdentityPoolId=pool.pool_id
         )
 
         initial = request.execute()
@@ -229,9 +240,9 @@ def _update_pool(declared_pool, existing_pool):
     }
 
     # If there is non differences, return the original existing key.
-    if mask == []:
+    if not mask:
         return existing_pool
-    
+
     with client as api:
         request = api.patch(
             name=declared_pool.name,
@@ -267,7 +278,7 @@ def _get_pool(pool):
     existing = None
 
     existing_pool = WorkloadIdentityPool(
-        id=pool.id,
+        pool_id=pool.pool_id,
         project=pool.project
     )
 
@@ -276,16 +287,16 @@ def _get_pool(pool):
 
         while request is not None:
             results = request.execute()
-            
+
             for result in results['workloadIdentityPools']:
                 if result['name'] == pool.name:
                     existing = result
 
             request = api.list_next(request, results)
-    
+
     if existing is None:
         raise ValueError(0)
-    
+
     existing_pool.update_from_dict(existing)
 
     return existing_pool
@@ -310,7 +321,7 @@ def _get_provider(provider):
     existing = None
 
     existing_provider = WorkloadIdentityProvider(
-        id=provider.id,
+        provider_id=provider.provider_id,
         parent=parent
     )
 
@@ -319,16 +330,16 @@ def _get_provider(provider):
 
         while request is not None:
             results = request.execute()
-            
+
             for result in results['workloadIdentityPoolProviders']:
                 if result['name'] == provider.name:
                     existing = result
 
             request = api.list_next(request, results)
-    
+
     if existing is None:
         raise ValueError(0)
-    
+
     existing_provider.update_from_dict(existing)
 
     return existing_provider
@@ -359,9 +370,9 @@ def _update_provider(declared_provider, existing_provider):
     }
 
     # If there is non differences, return the original existing key.
-    if mask == []:
+    if not mask:
         return existing_provider
-    
+
     with client.providers() as api:
         request = api.patch(
             name=declared_provider.name,
@@ -395,9 +406,9 @@ def _diff(declared, existing):
     mask = []
 
     for attr in existing.__dict__.keys():
-        if existing.__getattribute__(attr) != declared.__getattribute__(attr):
+        if getattr(existing, attr) != getattr(declared, attr):
             mask.append(attr)
-    
+
     return mask
 
 def _create_provider(provider):
@@ -421,15 +432,16 @@ def _create_provider(provider):
         'attributeMapping': provider.attribute_mapping,
         'oidc': provider.oidc
     }
-    existing_provider = WorkloadIdentityPool(
-        name=provider.name
+    existing_provider = WorkloadIdentityProvider(
+        provider_id=provider.provider_id,
+        parent=provider.parent
     )
 
     with client as api:
         request = api.create(
             parent=provider.parent,
             body=body,
-            workloadIdentityPoolProviderId=provider.id
+            workloadIdentityPoolProviderId=provider.provider_id
         )
 
         initial = request.execute()
@@ -457,21 +469,21 @@ def generate_terraform_provider(setup, project):
     org_name = setup['google']['org_name']
     terraform_org = setup['terraform']['organization']
     pool_id = setup['organizationPool']['id']
-    condition = 'organization:{0}:project:Workspaces'.format(terraform_org)
-    attribute_condition = 'assertion.sub.startsWith("{0}")'.format(condition)
+    condition = f'organization:{terraform_org}:project:Workspaces'
+    attribute_condition = f'assertion.sub.startsWith("{condition}")'
     oidc = {
-        'allowedAudiences': ['https://tfc.{0}'.format(org_name)],
+        'allowedAudiences': [f'https://tfc.{org_name}'],
         'issuerUri': setup['terraformProvider']['oidc']['issuerUri']
     }
 
     declared_pool = WorkloadIdentityPool(
-        id=pool_id,
+        pool_id=pool_id,
         project=project,
         description=setup['organizationPool']['description'],
         display_name=pool_id.replace('-', ' ').title()
     )
     declared_provider = WorkloadIdentityProvider(
-        id=setup['terraformProvider']['id'],
+        provider_id=setup['terraformProvider']['id'],
         parent=declared_pool.name,
         description=setup['terraformProvider']['description'],
         display_name=setup['terraformProvider']['displayName'],

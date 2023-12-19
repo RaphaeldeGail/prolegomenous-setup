@@ -4,15 +4,15 @@ This module will orchestrate between all financial resources creation on Google
 Cloud .
 """
 
+from time import strftime, localtime
+from psetup import config, billing
+from os import getenv
+
 def main():
     """
     Main entry for the psetup-billing client.
 
     """
-    from time import strftime, localtime
-    from psetup import config, billing
-    from os import getenv
-
     setup = config.from_yaml()
     timestamp = strftime('%Y-%m-%dT%H-%M', localtime())
     print(timestamp)

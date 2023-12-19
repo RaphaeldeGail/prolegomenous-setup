@@ -8,7 +8,6 @@ Typical usage example:
   root_project = generate_root(setup)
 """
 
-from random import randint
 from google.cloud import resourcemanager_v3
 from google.cloud import service_usage_v1
 from google.iam.v1 import iam_policy_pb2
@@ -72,20 +71,19 @@ def _get_project(project):
     for project in page_result:
         projects.append(project)
 
-    num = len(projects)
-
-    if num == 0:
-        e = ValueError(num)
+    if len(projects) > 1:
+        e = TypeError([ project.name for project in projects ])
         raise e
 
-    if num == 1:
-        return projects[0]
+    try:
+        project = projects[0]
+    except IndexError as exc:
+        e = IndexError(0)
+        raise e from exc
 
-    if num > 1:
-        e = ValueError(num, [ p.name for p in projects ])
-        raise e
+    return project
 
-def _control_access(project, policy):
+def control_access(project, policy):
     """
     Apply IAM policy to the project.
 
@@ -102,11 +100,9 @@ def _control_access(project, policy):
 
     client.set_iam_policy(request=request)
 
-    print('IAM policy set... ', end='')
-
     return None
 
-def _enable_services(project, services):
+def enable_services(project, services):
     """
     Enable a list of services for the project.
 
@@ -124,11 +120,9 @@ def _enable_services(project, services):
     operation = client.batch_enable_services(request=request)
     operation.result()
 
-    print('services enabled... ', end='')
-
     return None
 
-def _update_billing(billing):
+def update_billing(project, billing):
     """
     Update a project billing info compared to a declared value.
 
@@ -142,17 +136,48 @@ def _update_billing(billing):
     """
     client = billing_v1.CloudBillingClient()
     request = billing_v1.UpdateProjectBillingInfoRequest(
-        name=f'projects/{billing.project_id}',
+        name=f'projects/{project.project_id}',
         project_billing_info=billing
     )
 
     response = client.update_project_billing_info(request=request)
 
-    print('billing enabled... ', end='')
-
     return response
 
-def generate_root(setup):
+def apply_project(declared_project):
+    """
+    Generate the root project and related resources. Can either create, update
+        or leave it as it is. The project is also updated with a list of
+        services enabled and a new IAM policy.
+
+    Args:
+        parent: string, .
+        project_id: string, the id of the project.
+        display_name: string, the user-friendly name for the project.
+        labels: dict, a key-value map to caracterize the project.
+
+    Returns:
+        google.cloud.resourcemanager_v3.types.Project, the generated project.
+    """
+
+    try:
+        existing_project = _get_project(declared_project)
+    except IndexError as e:
+        if e.args[0] == 0:
+            existing_project = _create_project(declared_project)
+    except TypeError as e:
+        print(f'Found {len(e.args[0])} projects')
+        print(f'List of projects: {str(e.args[0])}')
+        raise e
+
+    return existing_project
+
+def project_info(
+    parent,
+    project_id=None,
+    display_name=None,
+    labels=None
+):
     """
     Generate the root project and related resources. Can either create, update
         or leave it as it is. The project is also updated with a list of
@@ -164,16 +189,10 @@ def generate_root(setup):
     Returns:
         google.cloud.resourcemanager_v3.types.Project, the generated project.
     """
-    # Sets the variables for generating the project
-    parent = setup['parent']
-    display_name = setup['rootProject']['displayName']
-    uuid = str(randint(1,999999))
-    project_id = f'{display_name}-{uuid}'
-    exec_grp = f'group:{setup["google"]["groups"]["executive_group"]}'
-    labels = setup['rootProject']['labels']
-    services = setup['rootProject']['services']
-    bill = f'billingAccounts/{setup["google"]["billing_account"]}'
-    policy = {'bindings': [{'members': [exec_grp], 'role': 'roles/owner'}]}
+
+    if not (project_id and display_name and labels):
+        print('At least one of project_id, display_name or labels should be')
+        raise ValueError('Query not valid')
 
     declared_project = resourcemanager_v3.Project(
         parent=parent,
@@ -182,26 +201,15 @@ def generate_root(setup):
         labels=labels
     )
 
-    declared_billing = billing_v1.ProjectBillingInfo(
-        billing_account_name=bill
-    )
-
     try:
         project = _get_project(declared_project)
-    except ValueError as e:
+    except IndexError as e:
         if e.args[0] == 0:
-            project = _create_project(declared_project)
-        else:
-            print(f'Found {e.args[0]} projects')
-            print(f'List of projects: {str(e.args[1])}')
+            print('Project not found')
             raise e
-
-    declared_billing.project_id = project.project_id
-
-    _update_billing(declared_billing)
-
-    _enable_services(project=project, services=services)
-
-    _control_access(project=project, policy=policy)
+    except TypeError as e:
+        print(f'Found {len(e.args[0])} projects')
+        print(f'List of projects: {str(e.args[0])}')
+        raise e
 
     return project

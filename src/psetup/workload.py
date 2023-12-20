@@ -453,7 +453,7 @@ def _create_provider(provider):
 
     return existing_provider
 
-def generate_terraform_provider(setup, project):
+def apply_pool(declared_pool):
     """
     Generate the workload identity pool and identity provider for terraform.
         Can either create, update or leave it as it is.
@@ -466,50 +466,35 @@ def generate_terraform_provider(setup, project):
     Returns:
         WorkloadIdentityPool, the generated workload identity pool.
     """
-    org_name = setup['google']['org_name']
-    terraform_org = setup['terraform']['organization']
-    pool_id = setup['organizationPool']['id']
-    condition = f'organization:{terraform_org}:project:Workspaces'
-    attribute_condition = f'assertion.sub.startsWith("{condition}")'
-    oidc = {
-        'allowedAudiences': [f'https://tfc.{org_name}'],
-        'issuerUri': setup['terraformProvider']['oidc']['issuerUri']
-    }
-
-    declared_pool = WorkloadIdentityPool(
-        pool_id=pool_id,
-        project=project,
-        description=setup['organizationPool']['description'],
-        display_name=pool_id.replace('-', ' ').title()
-    )
-    declared_provider = WorkloadIdentityProvider(
-        provider_id=setup['terraformProvider']['id'],
-        parent=declared_pool.name,
-        description=setup['terraformProvider']['description'],
-        display_name=setup['terraformProvider']['displayName'],
-        oidc= oidc,
-        attribute_mapping=setup['terraformProvider']['attributeMapping'],
-        attribute_condition=attribute_condition
-    )
-
     try:
         pool = _get_pool(declared_pool)
-    except ValueError as e:
+    except IndexError as e:
         if e.args[0] == 0:
             pool = _create_pool(declared_pool)
-        else:
-            raise e
 
     pool = _update_pool(declared_pool, pool)
 
+    return pool
+
+def apply_provider(declared_provider):
+    """
+    Generate the workload identity pool and identity provider for terraform.
+        Can either create, update or leave it as it is.
+
+    Args:
+        setup: dict, the configuration used to build the root structure.
+        project: string, the name of the project hosting the workload identity
+            pool.
+
+    Returns:
+        WorkloadIdentityPool, the generated workload identity pool.
+    """
     try:
         provider = _get_provider(declared_provider)
-    except ValueError as e:
+    except IndexError as e:
         if e.args[0] == 0:
-            provider = _create_provider(declared_pool)
-        else:
-            raise e
+            provider = _create_provider(declared_provider)
 
-    _update_provider(declared_provider, provider)
+    provider = _update_provider(declared_provider, provider)
 
-    return pool
+    return provider

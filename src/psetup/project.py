@@ -14,15 +14,14 @@ from google.iam.v1 import iam_policy_pb2
 from google.cloud import billing_v1
 
 def _create_project(project):
-    """
-    Create a project according to a declared project.
+    """Create a project according to a declared project.
 
     Args:
         project: google.cloud.resourcemanager_v3.types.Project, the declared
             project.
 
     Returns:
-        google.cloud.resourcemanager_v3.types.Project, the project created from
+        google.cloud.resourcemanager_v3.types.Project, the project created by
             the operation.
     """
     client = resourcemanager_v3.ProjectsClient()
@@ -36,12 +35,10 @@ def _create_project(project):
     return response
 
 def _get_project(project):
-    """
-    Get the existing project in Google organization corresponding to the
-        declared project.
+    """Get the existing project corresponding to the declared project.
 
     Args:
-        project: google.cloud.resourcemanager_v3.types.Project, the delcared
+        project: google.cloud.resourcemanager_v3.types.Project, the declared
             project.
 
     Returns:
@@ -49,8 +46,8 @@ def _get_project(project):
             it is unique.
 
     Raises:
-        ValueError, if there is no project matching the declared project, or if
-        the matching project is not unique.
+        IndexError, if there is no project matching the declared project.
+        TypeError, if the matching project is not unique.
     """
     # this is the query to find the matching projects
     query = [
@@ -84,8 +81,7 @@ def _get_project(project):
     return project
 
 def control_access(project, policy):
-    """
-    Apply IAM policy to the project.
+    """Apply IAM policy to the project.
 
     Args:
         project: google.cloud.resourcemanager_v3.types.Project, the delcared
@@ -103,8 +99,7 @@ def control_access(project, policy):
     return None
 
 def enable_services(project, services):
-    """
-    Enable a list of services for the project.
+    """Enable a list of services for the project.
 
     Args:
         project: google.cloud.resourcemanager_v3.types.Project, the delcared
@@ -123,8 +118,7 @@ def enable_services(project, services):
     return None
 
 def update_billing(project, billing):
-    """
-    Update a project billing info compared to a declared value.
+    """Update a project billing info compared to a declared value.
 
     Args:
         billing: google.cloud.resourcemanager_v3.types.ProjectBillingInfo, the
@@ -145,19 +139,20 @@ def update_billing(project, billing):
     return response
 
 def apply_project(declared_project):
-    """
-    Generate the root project and related resources. Can either create, update
-        or leave it as it is. The project is also updated with a list of
-        services enabled and a new IAM policy.
+    """Apply the declared project to the Google Cloud organization.
+    
+    Can either create, update or leave it as it is.
 
     Args:
-        parent: string, .
-        project_id: string, the id of the project.
-        display_name: string, the user-friendly name for the project.
-        labels: dict, a key-value map to caracterize the project.
+        declared_project: google.cloud.resourcemanager_v3.types.Project, the
+            project as declared.
 
     Returns:
-        google.cloud.resourcemanager_v3.types.Project, the generated project.
+        google.cloud.resourcemanager_v3.types.Project, the project resulting
+            from the operation.
+
+    Raises:
+        TypeError, if the matching project is not unique.
     """
 
     try:
@@ -172,34 +167,28 @@ def apply_project(declared_project):
 
     return existing_project
 
-def project_info(
-    parent,
-    project_id=None,
-    display_name=None,
-    labels=None
-):
-    """
-    Generate the root project and related resources. Can either create, update
-        or leave it as it is. The project is also updated with a list of
-        services enabled and a new IAM policy.
+def project_info(declared_project):
+    """Look for infos of the declared.
 
     Args:
-        setup: dict, the configuration used to build the root structure.
+        declared_project: google.cloud.resourcemanager_v3.types.Project, the
+            project as declared.
 
     Returns:
-        google.cloud.resourcemanager_v3.types.Project, the generated project.
+        google.cloud.resourcemanager_v3.types.Project, the matching project.
+
+    Raises:
+        ValueError, if the declared project is empty.
+        IndexError, if there is no project matching the declared project.
+        TypeError, if the matching project is not unique.
     """
+    project_id = declared_project.project_id
+    display_name = declared_project.display_name
+    labels = declared_project.labels
 
     if not (project_id and display_name and labels):
         print('At least one of project_id, display_name or labels should be')
-        raise ValueError('Query not valid')
-
-    declared_project = resourcemanager_v3.Project(
-        parent=parent,
-        project_id=project_id,
-        display_name=display_name,
-        labels=labels
-    )
+        raise ValueError('Query is empty')
 
     try:
         project = _get_project(declared_project)

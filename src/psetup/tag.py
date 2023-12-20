@@ -282,7 +282,7 @@ def _control_access(key, policy):
 
     return None
 
-def generate_root_tag(setup, project):
+def apply_key(declared_key):
     """
     Generate the root tag key and value. Can either create, update or leave it
         as it is. The tag value is also updated with a binding.
@@ -294,54 +294,57 @@ def generate_root_tag(setup, project):
     Returns:
         google.cloud.resourcemanager_v3.types.TagValue, the generated tag value.
     """
-    fqn = f'//cloudresourcemanager.googleapis.com/{project}'
-
-    declared_key = resourcemanager_v3.TagKey(
-        parent=setup['parent'],
-        short_name=setup['rootTag']['shortName'],
-        description=setup['rootTag']['description'],
-    )
-    declared_value = resourcemanager_v3.TagValue(
-        short_name=setup['trueValue']['shortName'],
-        description=setup['trueValue']['description'],
-    )
-    declared_binding = resourcemanager_v3.TagBinding(
-        parent=fqn
-    )
-
     try:
         key = _get_key(declared_key)
-    except ValueError as e:
+    except IndexError as e:
         if e.args[0] == 0:
             key = _create_key(declared_key)
-        else:
-            raise e
 
     key = _update_key(declared_key, key)
 
-    declared_value.parent = key.name
+    return key
 
+def apply_value(declared_value):
+    """
+    Generate the root tag key and value. Can either create, update or leave it
+        as it is. The tag value is also updated with a binding.
+
+    Args:
+        setup: dict, the configuration used to build the root structure.
+        project: string, the name of the project to bind the tag value with.
+
+    Returns:
+        google.cloud.resourcemanager_v3.types.TagValue, the generated tag value.
+    """
     try:
         value = _get_value(declared_value)
-    except ValueError as e:
+    except IndexError as e:
         if e.args[0] == 0:
             value = _create_value(value)
-        else:
-            raise e
 
     value = _update_value(declared_value, value)
 
-    declared_binding.tag_value = value.name
-
-    try:
-        _get_binding(declared_binding)
-    except ValueError as e:
-        if e.args[0] == 0:
-            _create_binding(declared_binding)
-        else:
-            raise e
-
     return value
+
+def apply_binding(declared_binding):
+    """
+    Generate the root tag key and value. Can either create, update or leave it
+        as it is. The tag value is also updated with a binding.
+
+    Args:
+        setup: dict, the configuration used to build the root structure.
+        project: string, the name of the project to bind the tag value with.
+
+    Returns:
+        google.cloud.resourcemanager_v3.types.TagValue, the generated tag value.
+    """
+    try:
+        binding = _get_binding(declared_binding)
+    except IndexError as e:
+        if e.args[0] == 0:
+            binding = _create_binding(declared_binding)
+
+    return binding
 
 def generate_workspace_tag(setup, builder_email):
     """

@@ -1,5 +1,16 @@
+"""Generate a tag key and value idempotently.
+
+Can apply a specific configuration for a tag and create or update it in
+order to match the configuration.
+
+Typical usage example:
+
+  generate_root_tag(setup, project)
+  generate_workspace_tag(setup, builder_email)
+"""
+
 from .config import from_yaml
-from .operation import IamPolicy
+from .utils import IamPolicy
 from google.cloud.resourcemanager_v3 import (
     Project,
     TagKey,
@@ -30,7 +41,7 @@ oidc = {
 
 wrk_id = setup['terraform']['workspace_project']
 
-role  = setup["workspaceFolder"]["builderRole"]
+role  = setup['workspaceFolder']['builderRole']
 builder_role = f'{setup["parent"]}/roles/{role}'
 
 root_project = Project(

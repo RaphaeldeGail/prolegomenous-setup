@@ -9,7 +9,7 @@ Typical usage example:
 """
 
 from googleapiclient.discovery import build
-from .operation import watch
+from .utils import watch
 
 # base client for all actions on workload identity pools and providers
 client = build('iam', 'v1').projects().locations().workloadIdentityPools()

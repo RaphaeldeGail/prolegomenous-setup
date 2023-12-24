@@ -8,9 +8,19 @@ Typical usage example:
   result = operation.watch(api=api, operation=operation)
 """
 
-from time import sleep
+from time import sleep, localtime, mktime
 
 class IamPolicy():
+    """A class to represent a service account in Google Cloud project.
+
+    Attributes:
+        account_id: string, the ID for the service account, which becomes the
+            final component of the resource name.
+        description: string, a description of the service account.
+        display_name: string, a user-friendly name for the service account.
+        project: string, the ID of the project to create this account in.
+
+    """
 
     def __init__(self, bindings=None):
         # Initial empty `bindings` list
@@ -18,7 +28,7 @@ class IamPolicy():
 
         if bindings:
             for binding in bindings:
-                if not binding['role'] in self.bindings.keys():
+                if not binding['role'] in self.bindings:
                     self.bindings.update({binding['role']: binding['members']})
                 else:
                     self.bindings[binding['role']].extend(binding['members'])
@@ -36,10 +46,14 @@ class IamPolicy():
         return fmt
 
     def add(self, binding):
-        if not binding['role'] in self.bindings.keys():
+        if not binding['role'] in self.bindings:
             self.bindings.update({binding['role']: binding['members']})
         else:
             self.bindings[binding['role']].extend(binding['members'])
+
+def timestamp(t0):
+    tf = localtime()
+    print(f' ({mktime(tf) - mktime(t0)} seconds)')
 
 # error message if creation status times out
 status_timeout = 'timeout before resource creation status is available.'

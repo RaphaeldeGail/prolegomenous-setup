@@ -1,10 +1,12 @@
 """Main module for the psetup client.
 
 This module will orchestrate between all resources creation on Google Cloud and
-display the command to run for the psetup-billing client subsequently.
+display the command to run for the psetup-billing client subsequently. This
+module does not instantiate the resources to create but instead garantees
+proper links between them, as imposed by the root structure.
 """
 
-from time import strftime, localtime, mktime
+from time import strftime, localtime
 from .project import (
     apply_project,
     enable_services,
@@ -30,10 +32,7 @@ from .folder import (
     control_access as folder_access
 )
 from . import core
-
-def timestamp(t0):
-    tf = localtime()
-    print(f' ({mktime(tf) - mktime(t0)} seconds)')
+from .utils import timestamp
 
 def main():
     """Main entry for the psetup client.

@@ -9,9 +9,9 @@ Typical usage example:
 """
 
 from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
-from google.cloud.billing_v1 import CloudBillingClient, BillingAccount
+from google.cloud.billing_v1 import CloudBillingClient
 
-def _control_access(billing_account, policy):
+def control_access(billing_account, policy):
     """
     Apply IAM policy to the billing account.
 
@@ -24,39 +24,11 @@ def _control_access(billing_account, policy):
     client = CloudBillingClient()
     request = SetIamPolicyRequest(
         resource=billing_account.name,
-        policy=policy
+        policy=policy.policy
     )
 
     client.set_iam_policy(request=request)
 
     print('IAM policy set... ', end='')
-
-    return None
-
-def generate_account(setup, builder_email):
-    """
-    Generate the billing account and related resources. The billing account is
-        updated with a new IAM policy.
-
-    Args:
-        setup: dict, the configuration used to build the root structure.
-    """
-    # Sets the variables for generating the billing account
-
-    mail = f'serviceAccount:{builder_email}'
-    bill = f'billingAccounts/{setup["google"]["billing_account"]}'
-    policy = {
-        'bindings': [
-            {'members': [mail], 'role': 'roles/billing.user'},
-            {'members': [mail], 'role': 'roles/billing.costsManager'},
-            {'members': [mail], 'role': 'roles/iam.securityAdmin'}
-        ]
-    }
-
-    billing_account = BillingAccount(
-        name=bill
-    )
-
-    _control_access(billing_account, policy)
 
     return None

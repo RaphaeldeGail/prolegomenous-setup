@@ -20,7 +20,6 @@ from google.cloud.resourcemanager_v3 import (
     ListTagValuesRequest,
     TagBindingsClient,
     ListTagBindingsRequest,
-    TagBindingsClient,
     CreateTagBindingRequest
 )
 from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest

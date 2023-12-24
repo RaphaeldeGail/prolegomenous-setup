@@ -9,7 +9,7 @@ Typical usage example:
 """
 
 from googleapiclient.discovery import build
-from psetup import operation
+from .operation import watch
 
 # base client for all actions on workload identity pools and providers
 client = build('iam', 'v1').projects().locations().workloadIdentityPools()
@@ -209,7 +209,7 @@ def _create_pool(pool):
         )
 
         initial = request.execute()
-        result = operation.watch(api=api, operation=initial)
+        result = watch(api=api, operation=initial)
 
     existing_pool.update_from_dict(result)
 
@@ -251,7 +251,7 @@ def _update_pool(declared_pool, existing_pool):
         )
 
         initial = request.execute()
-        result = operation.watch(api=api, operation=initial)
+        result = watch(api=api, operation=initial)
 
     existing_pool.update_from_dict(result)
 
@@ -381,7 +381,7 @@ def _update_provider(declared_provider, existing_provider):
         )
 
         initial = request.execute()
-        result = operation.watch(api=api, operation=initial)
+        result = watch(api=api, operation=initial)
 
     existing_provider.update_from_dict(result)
 
@@ -445,7 +445,7 @@ def _create_provider(provider):
         )
 
         initial = request.execute()
-        result = operation.watch(api=api, operation=initial)
+        result = watch(api=api, operation=initial)
 
     existing_provider.update_from_dict(result)
 

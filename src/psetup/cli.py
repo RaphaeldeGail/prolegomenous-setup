@@ -4,140 +4,151 @@ This module will orchestrate between all resources creation on Google Cloud and
 display the command to run for the psetup-billing client subsequently.
 """
 
-from time import strftime, localtime
-from random import randint
-from psetup import config, project, tag, workload
-from google.cloud import resourcemanager_v3
-from google.cloud import billing_v1
+from time import strftime, localtime, mktime
+from .project import (
+    apply_project,
+    enable_services,
+    control_access as project_access,
+    update_billing
+)
+from .tag import (
+    apply_key,
+    apply_value,
+    apply_binding,
+    control_access as tag_access
+)
+from .workload import (
+    apply_pool,
+    apply_provider
+)
+from .service_account import (
+    apply_service_account,
+    control_access as service_account_access
+)
+from .folder import (
+    apply_folder,
+    control_access as folder_access
+)
+from . import core
+
+def timestamp(t0):
+    tf = localtime()
+    print(f' ({mktime(tf) - mktime(t0)} seconds)')
 
 def main():
     """Main entry for the psetup client.
-
     """
-    timestamp = strftime('%Y-%m-%dT%H-%M', localtime())
-    print(f'*** Started on {timestamp} ***')
-    setup = config.from_yaml()
-
-    exec_grp = f'group:{setup["google"]["groups"]["executive_group"]}'
-    billing_account = f'billingAccounts/{setup["google"]["billing_account"]}'
-    uuid = str(randint(1,999999))
-
-    root_project = resourcemanager_v3.Project(
-        parent=setup['parent'],
-        project_id=f'{setup["rootProject"]["displayName"]}-{uuid}',
-        display_name=setup['rootProject']['displayName'],
-        labels=setup['rootProject']['labels']
-    )
-    root_project_services = setup['rootProject']['services']
-    root_project_iam = {
-        'bindings': [{'members': [exec_grp], 'role': 'roles/owner'}]
-    }
-    root_project_billing_info = billing_v1.ProjectBillingInfo(
-        billing_account_name=billing_account
-    )
-
-    root_tag_key = resourcemanager_v3.TagKey(
-        parent=setup['parent'],
-        short_name=setup['rootTag']['shortName'],
-        description=setup['rootTag']['description'],
-    )
-    root_tag_value = resourcemanager_v3.TagValue(
-        short_name=setup['trueValue']['shortName'],
-        description=setup['trueValue']['description'],
-    )
+    t0 = localtime()
+    print(f'*** Started on {strftime("%Y-%m-%dT%H-%M", t0)} ***')
 
     ##### Root Project #####
 
     print('generating root project... ', end='')
-    root_project = project.apply_project(root_project)
+    root_project = apply_project(core.root_project)
 
-    project.enable_services(root_project, root_project_services)
+    enable_services(root_project, core.root_project_services)
     print('services enabled... ', end='')
 
-    project.control_access(root_project, root_project_iam)
+    project_access(root_project, core.root_project_iam)
     print('IAM policy set... ', end='')
 
-    project.update_billing(root_project, root_project_billing_info)
+    update_billing(root_project, core.root_project_billing_info)
     print('billing enabled... ', end='')
 
-    print('DONE')
+    print('DONE', end='')
 
-    fqn = f'//cloudresourcemanager.googleapis.com/{root_project.name}'
-    root_tag_binding = resourcemanager_v3.TagBinding(
-        parent=fqn
-    )
+    timestamp(t0)
 
     ##### Root Tag #####
 
+    fqn = f'//cloudresourcemanager.googleapis.com/{root_project.name}'
+    core.root_tag_binding.parent = fqn
+
     print('generating root tag... ', end='')
-    root_tag_key = tag.apply_key(root_tag_key)
+    root_tag_key = apply_key(core.root_tag_key)
 
-    root_tag_value.parent = root_tag_key.name
-    root_tag_value = tag.apply_value(root_tag_value)
+    core.root_tag_value.parent = root_tag_key.name
+    root_tag_value = apply_value(core.root_tag_value)
 
-    root_tag_binding.tag_value = root_tag_value.name
-    root_tag_binding = tag.apply_binding(root_tag_binding)
+    core.root_tag_binding.tag_value = root_tag_value.name
+    apply_binding(core.root_tag_binding)
 
-    print('DONE')
+    print('DONE', end='')
 
-    pool_id = setup['organizationPool']['id']
-    org_name = setup['google']['org_name']
-    terraform_org = setup['terraform']['organization']
-    condition = f'organization:{terraform_org}:project:Workspaces'
-    attribute_condition = f'assertion.sub.startsWith("{condition}")'
-    oidc = {
-        'allowedAudiences': [f'https://tfc.{org_name}'],
-        'issuerUri': setup['terraformProvider']['oidc']['issuerUri']
-    }
-
-    organization_pool = workload.WorkloadIdentityPool(
-        pool_id=pool_id,
-        project=root_project.name,
-        description=setup['organizationPool']['description'],
-        display_name=pool_id.replace('-', ' ').title()
-    )
-    terraform_provider = workload.WorkloadIdentityProvider(
-        provider_id=setup['terraformProvider']['id'],
-        description=setup['terraformProvider']['description'],
-        display_name=setup['terraformProvider']['displayName'],
-        oidc= oidc,
-        attribute_mapping=setup['terraformProvider']['attributeMapping'],
-        attribute_condition=attribute_condition
-    )
+    timestamp(t0)
 
     ##### Workload Identity Pool #####
 
+    core.organization_pool.project = root_project.name
+
     print('generating workload identity pool... ', end='')
-    organization_pool = workload.apply_pool(organization_pool)
+    organization_pool = apply_pool(core.organization_pool)
 
-    terraform_provider.parent = organization_pool.name
-    terraform_provider = workload.apply_provider(terraform_provider)
+    core.terraform_provider.parent = organization_pool.name
+    apply_provider(core.terraform_provider)
 
-    print('DONE')
+    print('DONE', end='')
 
-    # print('generating service account... ', end='')
-    # builder_account = service_account.generate_service_account(
-    #     setup=setup,
-    #     parent=root_project.project_id,
-    #     pool_id=org_pool.name
-    # )
-    # builder_email = builder_account.name.split('/serviceAccounts/')[1]
-    # print('DONE')
+    timestamp(t0)
 
-    # print('generating workspace tag... ', end='')
-    # tag.generate_workspace_tag(
-    #     setup=setup,
-    #     builder_email=builder_email
-    # )
-    # print('DONE')
+    ##### Builder Service Account #####
 
-    # print('generating workspace folder... ', end='')
-    # folder.generate_folder(
-    #     setup=setup,
-    #     builder_email=builder_email
-    # )
-    # print('DONE')
+    pool = f'principalSet://iam.googleapis.com/{organization_pool.name}'
+    principal = f'{pool}/attribute.terraform_project_id/{core.wrk_id}'
 
-    # print('***')
-    # print('You can now run the following command:')
-    # print(f'BUILDER_EMAIL="{builder_email}" psetup-billing')
+    core.builder_account.project = root_project.project_id
+    core.builder_account_iam.add({
+        'role': 'roles/iam.workloadIdentityUser',
+        'members': [ principal ]
+    })
+
+    print('generating service account... ', end='')
+    builder_account = apply_service_account(core.builder_account)
+
+    service_account_access(builder_account, core.builder_account_iam)
+    print('IAM policy set... ', end='')
+
+    print('DONE', end='')
+
+    timestamp(t0)
+
+    ##### Workspace Tag #####
+
+    builder_email = f'serviceAccount:{builder_account.email}'
+    core.workspace_tag_key_iam.add({
+        'role': 'roles/resourcemanager.tagAdmin',
+        'members': [ builder_email ]
+    })
+
+    print('generating workspace tag... ', end='')
+    workspace_tag_key = apply_key(core.workspace_tag_key)
+
+    tag_access(workspace_tag_key, core.workspace_tag_key_iam)
+    print('IAM policy set... ', end='')
+
+    print('DONE', end='')
+
+    timestamp(t0)
+
+    ##### Workspace Folder #####
+
+    core.workspace_folder_iam.add({
+        'role': core.builder_role,
+        'members': [ builder_email ]
+    })
+
+    print('generating workspace folder... ', end='')
+    workspace_folder = apply_folder(core.workspace_folder)
+
+    folder_access(workspace_folder, core.workspace_folder_iam)
+    print('IAM policy set... ', end='')
+
+    print('DONE', end='')
+
+    timestamp(t0)
+
+    ##### #####
+
+    print('***')
+    print('You can now run the following command:')
+    print(f'BUILDER_EMAIL="{builder_account.email}" psetup-billing')

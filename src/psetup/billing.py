@@ -8,8 +8,8 @@ Typical usage example:
   generate_account(setup, builder_email)
 """
 
-from google.iam.v1 import iam_policy_pb2
-from google.cloud import billing_v1
+from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
+from google.cloud.billing_v1 import CloudBillingClient, BillingAccount
 
 def _control_access(billing_account, policy):
     """
@@ -21,8 +21,8 @@ def _control_access(billing_account, policy):
         policy: dict, list all `bindings` to apply to the billing account
             policy.
     """
-    client = billing_v1.CloudBillingClient()
-    request = iam_policy_pb2.SetIamPolicyRequest(
+    client = CloudBillingClient()
+    request = SetIamPolicyRequest(
         resource=billing_account.name,
         policy=policy
     )
@@ -53,7 +53,7 @@ def generate_account(setup, builder_email):
         ]
     }
 
-    billing_account = billing_v1.BillingAccount(
+    billing_account = BillingAccount(
         name=bill
     )
 

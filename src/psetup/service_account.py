@@ -80,6 +80,13 @@ class ServiceAccount:
         fmt = f'{project_id}/serviceAccounts/{sa}'
         return fmt
 
+    @property
+    def email(self):
+        """Returns the fully qualified email address of the instance.
+        """
+        fmt = self.name.split('/serviceAccounts/')[1]
+        return fmt
+
 def _create_sa(sa):
     """
     Create a service account according to a declared one.
@@ -217,13 +224,13 @@ def _get_sa(sa):
             request = api.list_next(request, results)
 
     if existing is None:
-        raise ValueError(0)
+        raise IndexError(0)
 
     existing_sa.update_from_dict(existing)
 
     return existing_sa
 
-def _control_access(sa, policy):
+def control_access(service_account, policy):
     """
     Apply IAM policy to the tag key.
 
@@ -231,15 +238,16 @@ def _control_access(sa, policy):
         sa: ServiceAccount, the delcared service account.
         policy: dict, list all `bindings` to apply to the account policy.
     """
-    with client as api:
-        request = api.setIamPolicy(resource=sa.name, body=policy)
-        request.execute()
+    # Match the body to the definition of service account setIamPolicy method.
+    body = { 'policy': policy.policy }
 
-    print('IAM policy set... ', end='')
+    with client as api:
+        request = api.setIamPolicy(resource=service_account.name, body=body)
+        request.execute()
 
     return None
 
-def generate_service_account(setup, parent, pool_id):
+def apply_service_account(declared_service_account):
     """Generate the builder servie account for the root structure.
     
     Can either create, update or leave it as it is.
@@ -253,43 +261,12 @@ def generate_service_account(setup, parent, pool_id):
     Returns:
         ServiceAccount, the generated service account.
     """
-    account_id = setup['builderAccount']['name']
-    exec_gr = f'group:{setup["google"]["groups"]["executive_group"]}'
-    wrk_id = setup['terraform']['workspace_project']
-    pool = f'principalSet://iam.googleapis.com/{pool_id}'
-    principal = f'{pool}/attribute.terraform_project_id/{wrk_id}'
-    policy = {
-        'policy': {
-            'bindings': [
-                {
-                    'members': [ exec_gr ],
-                    'role': 'roles/iam.serviceAccountTokenCreator',
-                },
-                {
-                    'members': [ principal ],
-                    'role': 'roles/iam.workloadIdentityUser',
-                },
-            ],
-        },
-    }
-
-    declared_sa = ServiceAccount(
-        account_id=account_id,
-        project=parent,
-        display_name=setup['builderAccount']['displayName'],
-        description=setup['builderAccount']['description']
-    )
-
     try:
-        sa = _get_sa(declared_sa)
-    except ValueError as e:
+        service_account = _get_sa(declared_service_account)
+    except IndexError as e:
         if e.args[0] == 0:
-            sa = _create_sa(declared_sa)
-        else:
-            raise e
+            service_account = _create_sa(declared_service_account)
 
-    sa = _update_sa(declared_sa, sa)
+    service_account = _update_sa(declared_service_account, service_account)
 
-    _control_access(sa, policy)
-
-    return sa
+    return service_account

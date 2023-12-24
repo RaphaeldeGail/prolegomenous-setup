@@ -8,10 +8,20 @@ Typical usage example:
   root_project = generate_root(setup)
 """
 
-from google.cloud import resourcemanager_v3
-from google.cloud import service_usage_v1
-from google.iam.v1 import iam_policy_pb2
-from google.cloud import billing_v1
+from google.cloud.resourcemanager_v3 import (
+    ProjectsClient,
+    CreateProjectRequest,
+    SearchProjectsRequest
+)
+from google.cloud.service_usage_v1 import (
+    ServiceUsageClient,
+    BatchEnableServicesRequest
+)
+from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
+from google.cloud.billing_v1 import (
+    CloudBillingClient,
+    UpdateProjectBillingInfoRequest
+)
 
 def _create_project(project):
     """Create a project according to a declared project.
@@ -24,8 +34,8 @@ def _create_project(project):
         google.cloud.resourcemanager_v3.types.Project, the project created by
             the operation.
     """
-    client = resourcemanager_v3.ProjectsClient()
-    request = resourcemanager_v3.CreateProjectRequest(project=project)
+    client = ProjectsClient()
+    request = CreateProjectRequest(project=project)
 
     operation = client.create_project(request=request)
     response = operation.result()
@@ -60,8 +70,8 @@ def _get_project(project):
     # instantiate the list of corresponding projects
     projects = []
 
-    client = resourcemanager_v3.ProjectsClient()
-    request = resourcemanager_v3.SearchProjectsRequest(query=query)
+    client = ProjectsClient()
+    request = SearchProjectsRequest(query=query)
 
     page_result = client.search_projects(request=request)
 
@@ -88,10 +98,10 @@ def control_access(project, policy):
             project.
         policy: dict, list all `bindings` to apply to the project policy.
     """
-    client = resourcemanager_v3.ProjectsClient()
-    request = iam_policy_pb2.SetIamPolicyRequest(
+    client = ProjectsClient()
+    request = SetIamPolicyRequest(
         resource=project.name,
-        policy=policy
+        policy=policy.policy
     )
 
     client.set_iam_policy(request=request)
@@ -106,8 +116,8 @@ def enable_services(project, services):
             project.
         services: list, a list of services to enable in the project.
     """
-    client = service_usage_v1.ServiceUsageClient()
-    request = service_usage_v1.BatchEnableServicesRequest(
+    client = ServiceUsageClient()
+    request = BatchEnableServicesRequest(
         parent=project.name,
         service_ids=services
     )
@@ -128,8 +138,8 @@ def update_billing(project, billing):
         google.cloud.resourcemanager_v3.types.ProjectBillingInfo, the project
             billing info updated from the operation.
     """
-    client = billing_v1.CloudBillingClient()
-    request = billing_v1.UpdateProjectBillingInfoRequest(
+    client = CloudBillingClient()
+    request = UpdateProjectBillingInfoRequest(
         name=f'projects/{project.project_id}',
         project_billing_info=billing
     )

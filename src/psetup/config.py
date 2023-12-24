@@ -11,9 +11,12 @@ Typical usage example:
 
 from yaml import safe_load
 from schema import Schema, SchemaError
-from google.cloud import resourcemanager_v3
+from google.cloud.resourcemanager_v3 import (
+    OrganizationsClient,
+    GetOrganizationRequest
+)
 from sys import prefix
-from os import path
+from os.path import isfile
 
 def override(dict1, dict2):
     """
@@ -65,7 +68,7 @@ def from_yaml():
     # default file for configuration of the structure root
     default = f'{prefix}/config/psetup/default.yaml'
 
-    if not path.isfile('environment.yaml'):
+    if not isfile('environment.yaml'):
         raise RuntimeError('The file "environment.yaml" could not be found.')
     # load the environment from setup.yaml
     with open('environment.yaml', 'r', encoding='utf-8') as f:
@@ -76,12 +79,12 @@ def from_yaml():
     except SchemaError as se:
         raise se
 
-    if not path.isfile(default):
+    if not isfile(default):
         raise RuntimeError(f'The file "{default}" could not be found.')
     with open(default, 'r', encoding='utf-8') as f:
         config = safe_load(f)
 
-    if path.isfile('config.yaml'):
+    if isfile('config.yaml'):
         with open('config.yaml', 'r', encoding='utf-8') as f:
             update = safe_load(f)
         config = override(config, update)
@@ -92,8 +95,8 @@ def from_yaml():
     parent = f'organizations/{org_id}'
     environment['parent'] = parent
 
-    client = resourcemanager_v3.OrganizationsClient()
-    request = resourcemanager_v3.GetOrganizationRequest(
+    client = OrganizationsClient()
+    request = GetOrganizationRequest(
         name=parent,
     )
 

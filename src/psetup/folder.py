@@ -8,8 +8,12 @@ Typical usage example:
   folder = generate_folder(setup, builder_email)
 """
 
-from google.cloud import resourcemanager_v3
-from google.iam.v1 import iam_policy_pb2
+from google.cloud.resourcemanager_v3 import (
+    FoldersClient,
+    CreateFolderRequest,
+    ListFoldersRequest
+)
+from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
 
 def _create_folder(folder):
     """
@@ -23,8 +27,8 @@ def _create_folder(folder):
         google.cloud.resourcemanager_v3.types.Folder, the folder created from
             the operation.
     """
-    client = resourcemanager_v3.FoldersClient()
-    request = resourcemanager_v3.CreateFolderRequest(folder=folder)
+    client = FoldersClient()
+    request = CreateFolderRequest(folder=folder)
 
     operation = client.create_project(request=request)
     response = operation.result()
@@ -51,8 +55,8 @@ def _get_folder(folder):
     """
     existing = None
 
-    client = resourcemanager_v3.FoldersClient()
-    request = resourcemanager_v3.ListFoldersRequest(parent=folder.parent)
+    client = FoldersClient()
+    request = ListFoldersRequest(parent=folder.parent)
 
     page_result = client.list_folders(request=request)
 
@@ -61,11 +65,11 @@ def _get_folder(folder):
             existing = response
 
     if existing is None:
-        raise ValueError(0)
+        raise IndexError(0)
 
     return existing
 
-def _control_access(folder, policy):
+def control_access(folder, policy):
     """
     Apply IAM policy to the folder.
 
@@ -74,19 +78,17 @@ def _control_access(folder, policy):
             folder.
         policy: dict, list all `bindings` to apply to the folder policy.
     """
-    client = resourcemanager_v3.FoldersClient()
-    request = iam_policy_pb2.SetIamPolicyRequest(
+    client = FoldersClient()
+    request = SetIamPolicyRequest(
         resource=folder.name,
-        policy=policy
+        policy=policy.policy
     )
 
     client.set_iam_policy(request=request)
 
-    print('IAM policy set... ', end='')
-
     return None
 
-def generate_folder(setup, builder_email):
+def apply_folder(declared_folder):
     """
     Generate the workspaces folder. Can either create, update or leave it as it
         is. The folder is also updated with a new IAM policy.
@@ -98,33 +100,10 @@ def generate_folder(setup, builder_email):
     Returns:
         google.cloud.resourcemanager_v3.types.Folder, the generated folder.
     """
-    exec_gr = f'group:{setup["google"]["groups"]["executive_group"]}'
-    builder_role = setup['workspaceFolder']['builderRole']
-    full_role_name = f'{setup["parent"]}/roles/{builder_role}'
-    policy = {
-        'bindings': [
-            {
-                'members': [ exec_gr ],
-                'role': 'roles/resourcemanager.folderAdmin'
-            },
-            {
-                'members': [f'serviceAccount:{builder_email}'],
-                'role': full_role_name
-            }
-        ]
-    }
-
-    declared_folder = resourcemanager_v3.Project(
-        parent=setup['parent'],
-        display_name=setup['workspaceFolder']['displayName']
-    )
-
     try:
         folder = _get_folder(declared_folder)
-    except ValueError as e:
+    except IndexError as e:
         if e.args[0] == 0:
             folder = _create_folder(declared_folder)
-
-    _control_access(folder=folder, policy=policy)
 
     return folder

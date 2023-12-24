@@ -9,9 +9,22 @@ Typical usage example:
   generate_workspace_tag(setup, builder_email)
 """
 
-from google.cloud import resourcemanager_v3
-from google.iam.v1 import iam_policy_pb2
-from google.protobuf import field_mask_pb2
+from google.cloud.resourcemanager_v3 import (
+    TagKeysClient,
+    CreateTagKeyRequest,
+    UpdateTagKeyRequest,
+    ListTagKeysRequest,
+    TagValuesClient,
+    CreateTagValueRequest,
+    UpdateTagValueRequest,
+    ListTagValuesRequest,
+    TagBindingsClient,
+    ListTagBindingsRequest,
+    TagBindingsClient,
+    CreateTagBindingRequest
+)
+from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
+from google.protobuf.field_mask_pb2 import FieldMask
 
 def _create_key(key):
     """
@@ -24,8 +37,8 @@ def _create_key(key):
         google.cloud.resourcemanager_v3.types.TagKey, the tag key created from
             the operation.
     """
-    client = resourcemanager_v3.TagKeysClient()
-    request = resourcemanager_v3.CreateTagKeyRequest(tag_key=key)
+    client = TagKeysClient()
+    request = CreateTagKeyRequest(tag_key=key)
 
     operation = client.create_tag_key(request=request)
     response = operation.result()
@@ -54,9 +67,9 @@ def _update_key(declared_key, existing_key):
     if not mask:
         return existing_key
 
-    client = resourcemanager_v3.TagKeysClient()
-    update_mask = field_mask_pb2.FieldMask(paths=mask)
-    request = resourcemanager_v3.UpdateTagKeyRequest(
+    client = TagKeysClient()
+    update_mask = FieldMask(paths=mask)
+    request = UpdateTagKeyRequest(
         tag_key=declared_key,
         update_mask=update_mask
     )
@@ -85,8 +98,8 @@ def _get_key(key):
     parent = key.parent
     existing = None
 
-    client = resourcemanager_v3.TagKeysClient()
-    request = resourcemanager_v3.ListTagKeysRequest(parent=parent)
+    client = TagKeysClient()
+    request = ListTagKeysRequest(parent=parent)
 
     page_result = client.list_tag_keys(request=request)
 
@@ -131,8 +144,8 @@ def _create_value(value):
         google.cloud.resourcemanager_v3.types.TagValue, the tag value created
             from the operation.
     """
-    client = resourcemanager_v3.TagValuesClient()
-    request = resourcemanager_v3.CreateTagValueRequest(tag_value=value)
+    client = TagValuesClient()
+    request = CreateTagValueRequest(tag_value=value)
 
     operation = client.create_tag_value(request=request)
     response = operation.result()
@@ -161,9 +174,9 @@ def _update_value(declared_value, existing_value):
     if not mask:
         return existing_value
 
-    client = resourcemanager_v3.TagValuesClient()
-    update_mask = field_mask_pb2.FieldMask(paths=mask)
-    request = resourcemanager_v3.UpdateTagValueRequest(
+    client = TagValuesClient()
+    update_mask = FieldMask(paths=mask)
+    request = UpdateTagValueRequest(
         tag_value=declared_value,
         update_mask=update_mask
     )
@@ -193,8 +206,8 @@ def _get_value(value):
     parent = value.parent
     existing = None
 
-    client = resourcemanager_v3.TagValuesClient()
-    request = resourcemanager_v3.ListTagValuesRequest(parent=parent)
+    client = TagValuesClient()
+    request = ListTagValuesRequest(parent=parent)
 
     page_result = client.list_tag_values(request=request)
 
@@ -224,8 +237,8 @@ def _get_binding(binding):
     """
     existing = None
 
-    client = resourcemanager_v3.TagBindingsClient()
-    request = resourcemanager_v3.ListTagBindingsRequest(
+    client = TagBindingsClient()
+    request = ListTagBindingsRequest(
         parent=binding.parent
     )
 
@@ -252,8 +265,8 @@ def _create_binding(binding):
         google.cloud.resourcemanager_v3.types.TagBinding, the tag binding
             created.
     """
-    client = resourcemanager_v3.TagBindingsClient()
-    request = resourcemanager_v3.CreateTagBindingRequest(tag_binding=binding)
+    client = TagBindingsClient()
+    request = CreateTagBindingRequest(tag_binding=binding)
 
     operation = client.create_tag_binding(request=request)
     response = operation.result()
@@ -262,7 +275,7 @@ def _create_binding(binding):
 
     return response
 
-def _control_access(key, policy):
+def control_access(key, policy):
     """
     Apply IAM policy to the tag key.
 
@@ -270,10 +283,10 @@ def _control_access(key, policy):
         key: google.cloud.resourcemanager_v3.types.TagKey, the delcared tag key.
         policy: dict, list all `bindings` to apply to the tag policy.
     """
-    client = resourcemanager_v3.TagKeysClient()
-    request = iam_policy_pb2.SetIamPolicyRequest(
+    client = TagKeysClient()
+    request = SetIamPolicyRequest(
         resource=key.name,
-        policy=policy
+        policy=policy.policy
     )
 
     client.set_iam_policy(request=request)
@@ -345,38 +358,3 @@ def apply_binding(declared_binding):
             binding = _create_binding(declared_binding)
 
     return binding
-
-def generate_workspace_tag(setup, builder_email):
-    """
-    Generate the workspace tag key. Can either create, update or leave it
-        as it is. The tag is also updated with a new IAM policy.
-
-    Args:
-        setup: dict, the configuration used to build the root structure.
-        builder_email: string, the email of the builder service account.
-
-    Returns:
-        google.cloud.resourcemanager_v3.types.TagKey, the generated tag value.
-    """
-    account = f'serviceAccount:{builder_email}'
-    role = 'roles/resourcemanager.tagAdmin'
-    policy = {'bindings': [{'members': [account],'role': role}]}
-
-    declared_key = resourcemanager_v3.TagKey(
-        parent=setup['parent'],
-        short_name=setup['workspaceTag']['shortName'],
-        description=setup['workspaceTag']['description'],
-    )
-    try:
-        key = _get_key(declared_key)
-    except ValueError as e:
-        if e.args[0] == 0:
-            key = _create_key(declared_key)
-        else:
-            raise e
-
-    key = _update_key(declared_key, key)
-
-    _control_access(key=key, policy=policy)
-
-    return key

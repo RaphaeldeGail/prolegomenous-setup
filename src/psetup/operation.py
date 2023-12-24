@@ -10,6 +10,37 @@ Typical usage example:
 
 from time import sleep
 
+class IamPolicy():
+
+    def __init__(self, bindings=None):
+        # Initial empty `bindings` list
+        self.bindings = {}
+
+        if bindings:
+            for binding in bindings:
+                if not binding['role'] in self.bindings.keys():
+                    self.bindings.update({binding['role']: binding['members']})
+                else:
+                    self.bindings[binding['role']].extend(binding['members'])
+
+    @property
+    def policy(self):
+        fmt = {
+            'bindings': [
+                {
+                    'role': role,
+                    'members': members
+                } for role, members in self.bindings.items()
+            ]
+        }
+        return fmt
+
+    def add(self, binding):
+        if not binding['role'] in self.bindings.keys():
+            self.bindings.update({binding['role']: binding['members']})
+        else:
+            self.bindings[binding['role']].extend(binding['members'])
+
 # error message if creation status times out
 status_timeout = 'timeout before resource creation status is available.'
 # error message if creation completion times out

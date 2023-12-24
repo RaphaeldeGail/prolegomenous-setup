@@ -5,15 +5,17 @@ Cloud .
 """
 
 from time import strftime, localtime
-from psetup import config, billing
 from os import getenv
+from .config import from_yaml
+from .billing import generate_account
+
 
 def main():
     """
     Main entry for the psetup-billing client.
 
     """
-    setup = config.from_yaml()
+    setup = from_yaml()
     timestamp = strftime('%Y-%m-%dT%H-%M', localtime())
     print(timestamp)
 
@@ -23,5 +25,5 @@ def main():
         raise ValueError('BUILDER_EMAIL environment variable empty')
 
     print('generating billing account... ', end='')
-    billing.generate_account(setup, builder_email)
+    generate_account(setup, builder_email)
     print('DONE')

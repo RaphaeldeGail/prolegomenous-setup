@@ -1,48 +1,40 @@
-# prolegomenous-setup
+# Prolegomenous Setup
 
-Setup for the initial configuration of Google Cloud organization.
+This is the initial setup client for building a *root* structure in a Google
+Cloud organization. To get started, please see the
+[docs folder](https://github.com/RaphaeldeGail/prolegomenous-setup/blob/main/docs/README.md).
 
-## The *workspace* structure
+This client is in an early development stage.
 
-This repository will create the following *workspace* structure with:
+## Testing
 
-- a *root* project used for API calls for administrative tasks,
-- a *workspaces* folder,
-- a *builder* service account with a specific role to create workspaces within
-the *workspace* folder
-- a workload identity federation to delegate the usage of the *builder* service
-account to a terraform Cloud organization.
-- a tag key is created to bind to any future workspace created.
+Test this code with **pylintrc**.
 
-## Usage of this repository
-
-This repository relies on a python script to create and/or update
-the *workspace* structure described above.
-
-### Pre-requisites
-
-the Google SDK is necessary for the scripts to authenticate to
-the Google API. You can rely on Google Cloud Shell for simplicity.
-
-A setup file *setup.yaml*, containing all the specific data from
-the organization should be created at the root of this project and fill with
-the following schema:
-
-```yaml
-# google part
-google:
-    organization: string, the organization number
-    billing_account: string, the ID of an available billing account
-    ext_admin_user: string, the email of a backup account
-    groups:
-        finops_group: string, the email of the group of FinOps
-        admins_group: string, the email of the group of Admins
-        policy_group: string, the email of the group of Policy admins
-        executive_group: string, the email of the group of Executives
-# terraform part
-terraform:
-    organization: string, the name of the Terraform Cloud organization
-    workspace_project: string, the ID of the terraform project for workspaces
+```bash
+pylint src/psetup
 ```
 
----
+## Packaging
+
+Build this package in a **virtualenv** using pip.
+For more information about virtualenv, please look for the [virtualenv website](https://virtualenv.pypa.io/en/latest/).
+
+```bash
+virtualenv env-name
+source env-name/bin/activate
+env-name/bin/python -m build
+```
+
+## Installation
+
+Install the client using pip.
+
+```bash
+env-name/bin/pip install dist/psetup-0.2.0-py3-none-any.whl
+```
+
+## Third Party Libraries and Dependencies
+
+The following libraries will be installed when you install the client library:
+
+* [google-cloud-resource-manager](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-resource-manager)

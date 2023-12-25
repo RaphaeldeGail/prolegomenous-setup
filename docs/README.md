@@ -7,7 +7,7 @@ account with enough permissions to build the blocks (see below).
 
 ## The *root* structure
 
-This repository will create the following *root* structure with:
+The *psetup* client will create the following *root* structure with:
 
 - a *root* project used for API calls for administrative tasks,
 - a *workspaces* folder,
@@ -16,6 +16,8 @@ the *workspace* folder
 - a workload identity federation to delegate the usage of the *builder* service
 account to a terraform Cloud organization.
 - a tag key is created to bind to any future workspace created.
+
+![The Root Strucure](img/root-structure.png "The Root Structure")
 
 ## Usage of the client
 

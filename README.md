@@ -2,7 +2,7 @@
 
 This is the initial setup client for building a *root* structure in a Google
 Cloud organization. To get started, please see the
-[docs folder](https://github.com/RaphaeldeGail/prolegomenous-setup/blob/main/docs/README.md).
+[docs folder](docs/README.md).
 
 This client is in an early development stage.
 

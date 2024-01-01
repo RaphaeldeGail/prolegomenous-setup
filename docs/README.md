@@ -17,7 +17,7 @@ the *workspace* folder
 account to a terraform Cloud organization.
 - a tag key is created to bind to any future workspace created.
 
-![The Root Strucure](img/root-structure.png "The Root Structure")
+![The Root Strucure](img/root-structure.svg "The Root Structure")
 
 ## Usage of the client
 

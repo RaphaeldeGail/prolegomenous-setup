@@ -7,6 +7,19 @@ account with enough permissions to build the blocks (see below).
 
 ## The *root* structure
 
+### Function of the *root* structure
+
+A root structure inside a Google Cloud Organization allows you to build
+complete independant workspaces for your project, each controlled by a
+terraform workspace counterpart.
+
+![Function of the Root Strucure](img/root-functional.svg "Function of the Root Structure")
+
+The *root* project allows a specific project from terraform Cloud to authenticate to the Google Cloud Organization in order to use a *Builder* account to set up *workspaces* inside the **Workspaces** folder.
+A *workspace* is a complete unit of resources for a team to build its project autonomously.
+
+### Organisation of the *root* structure
+
 The *psetup* client will create the following *root* structure with:
 
 - a *root* project used for API calls for administrative tasks,
@@ -17,7 +30,7 @@ the *workspace* folder
 account to a terraform Cloud organization.
 - a tag key is created to bind to any future workspace created.
 
-![The Root Strucure](img/root-structure.svg "The Root Structure")
+![Organization of the Root Strucure](img/root-organization.svg "Organization of the Root Structure")
 
 ## Usage of the client
 

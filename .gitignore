@@ -1,5 +1,5 @@
 .secrets
-environment.yaml
+environment.sh
 config.yaml*
 dist
 __pycache__

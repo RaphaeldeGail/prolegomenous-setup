@@ -9,11 +9,14 @@ Typical usage example:
 """
 
 from google.cloud.resourcemanager_v3 import (
+    Folder,
     FoldersClient,
     CreateFolderRequest,
     ListFoldersRequest
 )
 from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
+
+from .utils import IamPolicy
 
 def _create_folder(folder):
     """
@@ -81,14 +84,14 @@ def control_access(folder, policy):
     client = FoldersClient()
     request = SetIamPolicyRequest(
         resource=folder.name,
-        policy=policy.policy
+        policy=IamPolicy(policy).policy
     )
 
     client.set_iam_policy(request=request)
 
     return None
 
-def apply_folder(declared_folder):
+def apply_folder(parent, display_name):
     """
     Generate the workspaces folder. Can either create, update or leave it as it
         is. The folder is also updated with a new IAM policy.
@@ -100,6 +103,11 @@ def apply_folder(declared_folder):
     Returns:
         google.cloud.resourcemanager_v3.types.Folder, the generated folder.
     """
+    declared_folder = Folder(
+        parent=parent,
+        display_name=display_name
+    )
+
     try:
         folder = _get_folder(declared_folder)
     except IndexError as e:

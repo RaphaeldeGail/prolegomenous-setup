@@ -9,6 +9,7 @@ Typical usage example:
 """
 
 from google.cloud.resourcemanager_v3 import (
+    Project,
     ProjectsClient,
     CreateProjectRequest,
     SearchProjectsRequest
@@ -19,9 +20,12 @@ from google.cloud.service_usage_v1 import (
 )
 from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
 from google.cloud.billing_v1 import (
+    ProjectBillingInfo,
     CloudBillingClient,
     UpdateProjectBillingInfoRequest
 )
+
+from .utils import IamPolicy
 
 def _create_project(project):
     """Create a project according to a declared project.
@@ -101,7 +105,7 @@ def control_access(project, policy):
     client = ProjectsClient()
     request = SetIamPolicyRequest(
         resource=project.name,
-        policy=policy.policy
+        policy=IamPolicy(policy).policy
     )
 
     client.set_iam_policy(request=request)
@@ -127,7 +131,7 @@ def enable_services(project, services):
 
     return None
 
-def update_billing(project, billing):
+def update_billing(project, billing_account_name):
     """Update a project billing info compared to a declared value.
 
     Args:
@@ -141,14 +145,16 @@ def update_billing(project, billing):
     client = CloudBillingClient()
     request = UpdateProjectBillingInfoRequest(
         name=f'projects/{project.project_id}',
-        project_billing_info=billing
+        project_billing_info=ProjectBillingInfo(
+            billing_account_name=billing_account_name
+        )
     )
 
     response = client.update_project_billing_info(request=request)
 
     return response
 
-def apply_project(declared_project):
+def apply_project(parent, project_id, displayName, labels):
     """Apply the declared project to the Google Cloud organization.
     
     Can either create, update or leave it as it is.
@@ -164,6 +170,12 @@ def apply_project(declared_project):
     Raises:
         TypeError, if the matching project is not unique.
     """
+    declared_project = Project(
+        parent=parent,
+        project_id=project_id,
+        display_name=displayName,
+        labels=labels
+    )
 
     try:
         existing_project = _get_project(declared_project)

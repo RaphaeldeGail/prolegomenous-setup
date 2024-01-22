@@ -10,15 +10,13 @@ Typical usage example:
 """
 
 from yaml import safe_load
-from schema import Schema, SchemaError
-from google.cloud.resourcemanager_v3 import (
-    OrganizationsClient,
-    GetOrganizationRequest
-)
 from sys import prefix
 from os.path import isfile
+from os import getenv
 
-def override(dict1, dict2):
+from .organization import find_organization
+
+def _override(dict1, dict2):
     """
     Override a dictionary entry, keys by keys subkeys by subkeys.
 
@@ -33,12 +31,12 @@ def override(dict1, dict2):
         if not key in dict2:
             continue
         if isinstance(value, dict):
-            dict1[key] = override(dict1[key], dict2[key])
+            dict1[key] = _override(dict1[key], dict2[key])
         else:
             dict1[key] = dict2[key]
     return dict1
 
-def from_yaml():
+def from_yaml(file, offline):
     """
     Fetch configuration entries for a particular root structure. The entries
     are supposed to be stored in YAML files.
@@ -46,63 +44,56 @@ def from_yaml():
     Returns:
         dict, the full configuration for the root structure.
     """
-    # the schema for the environment file in YAML
-    environment_schema = Schema({
-        'google': {
-            'organization': str,
-            'billing_account': str,
-            'ext_admin_user': str,
-            'groups': {
-                'finops_group': str,
-                'admins_group': str,
-                'policy_group': str,
-                'executive_group': str
-            }
-        },
-        'terraform': {
-            'organization': str,
-            'workspace_project': str
-        }
-    })
-
-    # default file for configuration of the structure root
     default = f'{prefix}/config/psetup/default.yaml'
 
-    if not isfile('environment.yaml'):
-        raise RuntimeError('The file "environment.yaml" could not be found.')
-    # load the environment from setup.yaml
-    with open('environment.yaml', 'r', encoding='utf-8') as f:
-        environment = safe_load(f)
-    # validate the environment YAML against the schema
-    try:
-        environment_schema.validate(environment)
-    except SchemaError as se:
-        raise se
+    google_organization = getenv('GOOGLE_ORGANIZATION', None)
+    google_billing_account = getenv('GOOGLE_BILLING_ACCOUNT', None)
+    external_owner = getenv('EXTERNAL_OWNER', None)
+    finops_group = getenv('FINOPS_GROUP', None)
+    admins_group = getenv('ADMINS_GROUP', None)
+    policy_group = getenv('POLICY_GROUP', None)
+    executive_group = getenv('EXECUTIVE_GROUP', None)
+    tfc_organization = getenv('TFC_ORGANIZATION', None)
 
+    environment = {}
+    environment['google'] = {
+        'organization': {
+            'display_name': google_organization
+        },
+        'billing_account': google_billing_account,
+        'ext_admin_user': external_owner,
+        'groups': {
+            'finops_group': finops_group,
+            'admins_group': admins_group,
+            'policy_group': policy_group,
+            'executive_group': executive_group
+        }
+    }
+    environment['terraform'] = {
+        'organization': tfc_organization
+    }
+
+    # Load data from default configuration file
     if not isfile(default):
         raise RuntimeError(f'The file "{default}" could not be found.')
     with open(default, 'r', encoding='utf-8') as f:
         config = safe_load(f)
 
-    if isfile('config.yaml'):
-        with open('config.yaml', 'r', encoding='utf-8') as f:
+    # Load data from user configuration file
+    if file and isfile(file):
+        with open(file, 'r', encoding='utf-8') as f:
             update = safe_load(f)
-        config = override(config, update)
+        config = _override(config, update)
 
-    # the organization number
-    org_id = environment['google']['organization']
-    ## the organization name as string 'organizations/{org_id}'
-    parent = f'organizations/{org_id}'
-    environment['parent'] = parent
+    # Fetch organization data
+    org_domain = environment['google']['organization']['display_name']
+    if not offline:
+        org = find_organization(org_domain)
 
-    client = OrganizationsClient()
-    request = GetOrganizationRequest(
-        name=parent,
-    )
-
-    response = client.get_organization(request=request)
-
-    environment['google']['org_name'] = response.display_name
+        environment['google']['organization']['name'] = org.name
+        dci = org.directory_customer_id
+        environment['google']['organization']['directory_customer_id'] = dci
+    # Merge all data
     environment.update(config)
 
     return environment

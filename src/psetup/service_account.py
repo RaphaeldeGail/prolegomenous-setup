@@ -9,9 +9,7 @@ Typical usage example:
 """
 
 from googleapiclient.discovery import build
-
-# base client for all actions on workload identity pools and providers
-client = build('iam', 'v1').projects().serviceAccounts()
+from .utils import IamPolicy
 
 class ServiceAccount:
     """A class to represent a service account in Google Cloud project.
@@ -111,7 +109,7 @@ def _create_sa(sa):
         project=sa.project
     )
 
-    with client as api:
+    with build('iam', 'v1').projects().serviceAccounts() as api:
         request = api.create(
             name=f'projects/{sa.project}',
             body=body,
@@ -155,7 +153,7 @@ def _update_sa(declared_sa, existing_sa):
     if not mask:
         return existing_sa
 
-    with client as api:
+    with build('iam', 'v1').projects().serviceAccounts() as api:
         request = api.patch(
             name=declared_sa.name,
             body=body
@@ -211,7 +209,7 @@ def _get_sa(sa):
         project=sa.project
     )
 
-    with client as api:
+    with build('iam', 'v1').projects().serviceAccounts() as api:
         request = api.list(name=parent)
 
         while request is not None:
@@ -239,15 +237,15 @@ def control_access(service_account, policy):
         policy: dict, list all `bindings` to apply to the account policy.
     """
     # Match the body to the definition of service account setIamPolicy method.
-    body = { 'policy': policy.policy }
+    body = { 'policy': IamPolicy(policy).policy }
 
-    with client as api:
+    with build('iam', 'v1').projects().serviceAccounts() as api:
         request = api.setIamPolicy(resource=service_account.name, body=body)
         request.execute()
 
     return None
 
-def apply_service_account(declared_service_account):
+def apply_service_account(project, account_id, display_name, description):
     """Generate the builder servie account for the root structure.
     
     Can either create, update or leave it as it is.
@@ -261,6 +259,13 @@ def apply_service_account(declared_service_account):
     Returns:
         ServiceAccount, the generated service account.
     """
+    declared_service_account = ServiceAccount(
+        project=project.project_id,
+        account_id=account_id,
+        display_name=display_name,
+        description=description
+    )
+
     try:
         service_account = _get_sa(declared_service_account)
     except IndexError as e:

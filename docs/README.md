@@ -28,9 +28,25 @@ The *psetup* client will create the following *root* structure with:
 the *workspace* folder
 - a workload identity federation to delegate the usage of the *builder* service
 account to a terraform Cloud organization.
-- a tag key is created to bind to any future workspace created.
+- a *workspace* tag key is created to bind to any future workspace created.
 
 ![Organization of the Root Strucure](img/root-organization.svg "Organization of the Root Structure")
+
+### Roles in the *root* structure
+
+The *psetup* client relies on an *executive* group member for creation.
+
+The *root* structure relies on three roles for usage:
+
+- the *builder* role, for a service account to build any **workspace** in the *Workspaces* folder.
+- the *admin* role, for a group to manage the *root* structure's building blocks.
+- the *viewer* role, for a group to inspect the root structure.
+
+![Roles in the Root Strucure](img/root-roles.svg "Roles in the Root Structure")
+
+The *builder* role will be given to the *builder* service account of the *root* structure.
+The *admin* role will be given to the *executive* group members.
+The *viewer* role will be given to the *finops* and *policy administrators* group members.
 
 ## Usage of the client
 

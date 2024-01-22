@@ -10,6 +10,7 @@ Typical usage example:
 """
 
 from google.cloud.resourcemanager_v3 import (
+    TagKey,
     TagKeysClient,
     CreateTagKeyRequest,
     UpdateTagKeyRequest,
@@ -24,6 +25,8 @@ from google.cloud.resourcemanager_v3 import (
 )
 from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
 from google.protobuf.field_mask_pb2 import FieldMask
+
+from .utils import IamPolicy
 
 def _create_key(key):
     """
@@ -285,16 +288,14 @@ def control_access(key, policy):
     client = TagKeysClient()
     request = SetIamPolicyRequest(
         resource=key.name,
-        policy=policy.policy
+        policy=IamPolicy(policy).policy
     )
 
     client.set_iam_policy(request=request)
 
-    print('IAM policy set... ', end='')
-
     return None
 
-def apply_key(declared_key):
+def apply_key(parent, short_name, description):
     """
     Generate the root tag key and value. Can either create, update or leave it
         as it is. The tag value is also updated with a binding.
@@ -306,6 +307,12 @@ def apply_key(declared_key):
     Returns:
         google.cloud.resourcemanager_v3.types.TagValue, the generated tag value.
     """
+    declared_key = TagKey(
+        parent=parent,
+        short_name=short_name,
+        description=description,
+    )
+
     try:
         key = _get_key(declared_key)
     except IndexError as e:

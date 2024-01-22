@@ -11,9 +11,6 @@ Typical usage example:
 from googleapiclient.discovery import build
 from .utils import watch
 
-# base client for all actions on workload identity pools and providers
-client = build('iam', 'v1').projects().locations().workloadIdentityPools()
-
 class WorkloadIdentityPool:
     """A class to represent a workload identity pool in Google Cloud.
 
@@ -201,7 +198,7 @@ def _create_pool(pool):
         project=pool.project
     )
 
-    with client as api:
+    with build('iam', 'v1').projects().locations().workloadIdentityPools() as api:
         request = api.create(
             parent=pool.parent,
             body=body,
@@ -243,7 +240,7 @@ def _update_pool(declared_pool, existing_pool):
     if not mask:
         return existing_pool
 
-    with client as api:
+    with build('iam', 'v1').projects().locations().workloadIdentityPools() as api:
         request = api.patch(
             name=declared_pool.name,
             body=body,
@@ -282,7 +279,7 @@ def _get_pool(pool):
         project=pool.project
     )
 
-    with client as api:
+    with build('iam', 'v1').projects().locations().workloadIdentityPools() as api:
         request = api.list(parent=parent)
 
         while request is not None:
@@ -325,7 +322,7 @@ def _get_provider(provider):
         parent=parent
     )
 
-    with client.providers() as api:
+    with build('iam', 'v1').projects().locations().workloadIdentityPools().providers() as api:
         request = api.list(parent=parent)
 
         while request is not None:
@@ -373,7 +370,7 @@ def _update_provider(declared_provider, existing_provider):
     if not mask:
         return existing_provider
 
-    with client.providers() as api:
+    with build('iam', 'v1').projects().locations().workloadIdentityPools().providers() as api:
         request = api.patch(
             name=declared_provider.name,
             body=body,
@@ -437,7 +434,7 @@ def _create_provider(provider):
         parent=provider.parent
     )
 
-    with client as api:
+    with build('iam', 'v1').projects().locations().workloadIdentityPools() as api:
         request = api.create(
             parent=provider.parent,
             body=body,
@@ -453,7 +450,7 @@ def _create_provider(provider):
 
     return existing_provider
 
-def apply_pool(declared_pool):
+def apply_pool(project, pool_id, description, display_name):
     """
     Generate the workload identity pool and identity provider for terraform.
         Can either create, update or leave it as it is.
@@ -466,6 +463,13 @@ def apply_pool(declared_pool):
     Returns:
         WorkloadIdentityPool, the generated workload identity pool.
     """
+    declared_pool = WorkloadIdentityPool(
+        project=project.name,
+        pool_id=pool_id,
+        description=description,
+        display_name=display_name
+    )
+
     try:
         pool = _get_pool(declared_pool)
     except IndexError as e:
@@ -476,7 +480,7 @@ def apply_pool(declared_pool):
 
     return pool
 
-def apply_provider(declared_provider):
+def apply_provider(parent, provider_id, description, display_name, oidc, attribute_mapping, attribute_condition):
     """
     Generate the workload identity pool and identity provider for terraform.
         Can either create, update or leave it as it is.
@@ -489,6 +493,16 @@ def apply_provider(declared_provider):
     Returns:
         WorkloadIdentityPool, the generated workload identity pool.
     """
+    declared_provider = WorkloadIdentityProvider(
+        parent=parent.name,
+        provider_id=provider_id,
+        description=description,
+        display_name=display_name,
+        oidc=oidc,
+        attribute_mapping=attribute_mapping,
+        attribute_condition=attribute_condition
+    )
+
     try:
         provider = _get_provider(declared_provider)
     except IndexError as e:

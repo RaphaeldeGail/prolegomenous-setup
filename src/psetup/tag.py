@@ -26,8 +26,6 @@ from google.cloud.resourcemanager_v3 import (
 from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
 from google.protobuf.field_mask_pb2 import FieldMask
 
-from .utils import IamPolicy
-
 def _create_key(key):
     """
     Create a tag key according to a declared key.
@@ -288,14 +286,14 @@ def control_access(key, policy):
     client = TagKeysClient()
     request = SetIamPolicyRequest(
         resource=key.name,
-        policy=IamPolicy(policy).policy
+        policy=policy.format
     )
 
     client.set_iam_policy(request=request)
 
     return None
 
-def apply_key(parent, short_name, description):
+def apply_key(parent, shortName, description):
     """
     Generate the root tag key and value. Can either create, update or leave it
         as it is. The tag value is also updated with a binding.
@@ -309,7 +307,7 @@ def apply_key(parent, short_name, description):
     """
     declared_key = TagKey(
         parent=parent,
-        short_name=short_name,
+        short_name=shortName,
         description=description,
     )
 

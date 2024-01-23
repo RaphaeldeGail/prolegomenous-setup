@@ -9,7 +9,6 @@ Typical usage example:
 """
 
 from googleapiclient.discovery import build
-from .utils import IamPolicy
 
 class ServiceAccount:
     """A class to represent a service account in Google Cloud project.
@@ -237,7 +236,7 @@ def control_access(service_account, policy):
         policy: dict, list all `bindings` to apply to the account policy.
     """
     # Match the body to the definition of service account setIamPolicy method.
-    body = { 'policy': IamPolicy(policy).policy }
+    body = { 'policy': policy.format }
 
     with build('iam', 'v1').projects().serviceAccounts() as api:
         request = api.setIamPolicy(resource=service_account.name, body=body)
@@ -245,7 +244,7 @@ def control_access(service_account, policy):
 
     return None
 
-def apply_service_account(project, account_id, display_name, description):
+def apply_service_account(project, id, displayName, description):
     """Generate the builder servie account for the root structure.
     
     Can either create, update or leave it as it is.
@@ -261,8 +260,8 @@ def apply_service_account(project, account_id, display_name, description):
     """
     declared_service_account = ServiceAccount(
         project=project.project_id,
-        account_id=account_id,
-        display_name=display_name,
+        account_id=id,
+        display_name=displayName,
         description=description
     )
 

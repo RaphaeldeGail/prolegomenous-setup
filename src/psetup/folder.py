@@ -16,8 +16,6 @@ from google.cloud.resourcemanager_v3 import (
 )
 from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
 
-from .utils import IamPolicy
-
 def _create_folder(folder):
     """
     Create a folder according to a declared folder.
@@ -84,14 +82,14 @@ def control_access(folder, policy):
     client = FoldersClient()
     request = SetIamPolicyRequest(
         resource=folder.name,
-        policy=IamPolicy(policy).policy
+        policy=policy.format
     )
 
     client.set_iam_policy(request=request)
 
     return None
 
-def apply_folder(parent, display_name):
+def apply_folder(parent, displayName):
     """
     Generate the workspaces folder. Can either create, update or leave it as it
         is. The folder is also updated with a new IAM policy.
@@ -105,7 +103,7 @@ def apply_folder(parent, display_name):
     """
     declared_folder = Folder(
         parent=parent,
-        display_name=display_name
+        display_name=displayName
     )
 
     try:

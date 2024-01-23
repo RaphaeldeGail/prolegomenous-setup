@@ -36,7 +36,7 @@ def _override(dict1, dict2):
             dict1[key] = dict2[key]
     return dict1
 
-def from_yaml(file, offline):
+def from_yaml(custom_config, offline):
     """
     Fetch configuration entries for a particular root structure. The entries
     are supposed to be stored in YAML files.
@@ -44,7 +44,7 @@ def from_yaml(file, offline):
     Returns:
         dict, the full configuration for the root structure.
     """
-    default = f'{prefix}/config/psetup/default.yaml'
+    default_config = f'{prefix}/config/psetup/default.yaml'
 
     google_organization = getenv('GOOGLE_ORGANIZATION', None)
     google_billing_account = getenv('GOOGLE_BILLING_ACCOUNT', None)
@@ -55,44 +55,42 @@ def from_yaml(file, offline):
     executive_group = getenv('EXECUTIVE_GROUP', None)
     tfc_organization = getenv('TFC_ORGANIZATION', None)
 
-    environment = {}
-    environment['google'] = {
-        'organization': {
-            'display_name': google_organization
+    environment = {
+        'googleOrganization': { 'displayName': google_organization },
+        'billingAccount': google_billing_account,
+        'owner':  external_owner,
+        'googleGroups': {
+            'finops': finops_group,
+            'admins': admins_group,
+            'policy': policy_group,
+            'executive': executive_group
         },
-        'billing_account': google_billing_account,
-        'ext_admin_user': external_owner,
-        'groups': {
-            'finops_group': finops_group,
-            'admins_group': admins_group,
-            'policy_group': policy_group,
-            'executive_group': executive_group
-        }
-    }
-    environment['terraform'] = {
-        'organization': tfc_organization
+        'terraformOrganization': tfc_organization
     }
 
     # Load data from default configuration file
-    if not isfile(default):
-        raise RuntimeError(f'The file "{default}" could not be found.')
-    with open(default, 'r', encoding='utf-8') as f:
-        config = safe_load(f)
+    try:
+        with open(default_config, 'r', encoding='utf-8') as f:
+            config = safe_load(f)
+    except FileNotFoundError as e:
+        raise FileNotFoundError('Default configuration file not found') from e
 
     # Load data from user configuration file
-    if file and isfile(file):
-        with open(file, 'r', encoding='utf-8') as f:
+    try:
+        with open(custom_config, 'r', encoding='utf-8') as f:
             update = safe_load(f)
         config = _override(config, update)
+    except TypeError:
+        pass
 
     # Fetch organization data
-    org_domain = environment['google']['organization']['display_name']
+    org_domain = environment['googleOrganization']['displayName']
     if not offline:
         org = find_organization(org_domain)
 
-        environment['google']['organization']['name'] = org.name
+        environment['googleOrganization']['name'] = org.name
         dci = org.directory_customer_id
-        environment['google']['organization']['directory_customer_id'] = dci
+        environment['googleOrganization']['directoryCustomerId'] = dci
     # Merge all data
     environment.update(config)
 

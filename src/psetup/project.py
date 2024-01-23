@@ -25,8 +25,6 @@ from google.cloud.billing_v1 import (
     UpdateProjectBillingInfoRequest
 )
 
-from .utils import IamPolicy
-
 def _create_project(project):
     """Create a project according to a declared project.
 
@@ -105,7 +103,7 @@ def control_access(project, policy):
     client = ProjectsClient()
     request = SetIamPolicyRequest(
         resource=project.name,
-        policy=IamPolicy(policy).policy
+        policy=policy.format
     )
 
     client.set_iam_policy(request=request)
@@ -131,7 +129,7 @@ def enable_services(project, services):
 
     return None
 
-def update_billing(project, billing_account_name):
+def update_billing(project, name):
     """Update a project billing info compared to a declared value.
 
     Args:
@@ -146,7 +144,7 @@ def update_billing(project, billing_account_name):
     request = UpdateProjectBillingInfoRequest(
         name=f'projects/{project.project_id}',
         project_billing_info=ProjectBillingInfo(
-            billing_account_name=billing_account_name
+            billing_account_name=name
         )
     )
 
@@ -154,7 +152,7 @@ def update_billing(project, billing_account_name):
 
     return response
 
-def apply_project(parent, project_id, displayName, labels):
+def apply_project(parent, id, displayName, labels):
     """Apply the declared project to the Google Cloud organization.
     
     Can either create, update or leave it as it is.
@@ -172,7 +170,7 @@ def apply_project(parent, project_id, displayName, labels):
     """
     declared_project = Project(
         parent=parent,
-        project_id=project_id,
+        project_id=id,
         display_name=displayName,
         labels=labels
     )

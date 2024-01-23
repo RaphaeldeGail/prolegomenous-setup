@@ -24,7 +24,7 @@ def control_access(billing_account, policy):
     client = CloudBillingClient()
     request = SetIamPolicyRequest(
         resource=billing_account.name,
-        policy=policy.policy
+        policy=policy.format
     )
 
     client.set_iam_policy(request=request)

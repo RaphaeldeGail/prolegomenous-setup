@@ -11,8 +11,6 @@ Typical usage example:
 from google.cloud.resourcemanager_v3 import OrganizationsClient, SearchOrganizationsRequest
 from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
 
-from .utils import IamPolicy
-
 def find_organization(display_name):
     """Get the existing project corresponding to the declared project.
 
@@ -64,7 +62,7 @@ def control_access(organization, policy):
     client = OrganizationsClient()
     request = SetIamPolicyRequest(
         resource=organization,
-        policy=IamPolicy(policy).policy
+        policy=policy.format
     )
 
     client.set_iam_policy(request=request)

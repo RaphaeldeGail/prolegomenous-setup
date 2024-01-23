@@ -9,7 +9,82 @@ Typical usage example:
 """
 
 from googleapiclient.discovery import build
-from .utils import watch
+
+from time import sleep
+
+# error message if creation status times out
+status_timeout = 'timeout before resource creation status is available.'
+# error message if creation completion times out
+completion_timeout = 'timeout before resource creation is done.'
+# error message if the operation message is not well formed
+message_error = 'the operation response contained neither a name nor a status.'
+
+def _watch(api, operation, period=5, timeout=60):
+    """
+    Wait for an operation to complete before returning the complettion message.
+        A completed operation should contain the item "done: True" in its
+        message.
+
+    Args:
+        api: api, the base Google api with the operations resource.
+        operation: operation, the initial operation response delivered by some
+            request.
+        period: int, the time interval, in seconds, between two consecutive
+            checks of the operation status. Defaults to 5.
+        timeout: int, the maximum time interval to wait before the operation
+            is considered a failure if it is not already completed.
+
+    Returns:
+        operation, the final operation response after it reached completion.
+
+    Raises:
+        RuntimeError, Raises an exception if the initial operation does not
+            bear a name nor a status.
+        RuntimeError, Raises an exception if the operation times out before an
+            operation status could be received.
+        RuntimeError, Raises an exception if the operation times out before its
+            status reaches completion.
+        RuntimeError, Raises an exception if the final response contains an
+            error entry.
+        RuntimeError, Raises an exception if the final operation message does
+            not contain a response entry.
+    """
+    if ( not 'name' in operation ) and ( not 'done' in operation ):
+        raise RuntimeError(message_error)
+
+    if ( not 'name' in operation ) and ( operation['done'] ):
+        return operation
+
+    request = api.operations().get(name=operation['name'])
+    # this loop will check for updates every (period=5) seconds during
+    # (timeout=60) seconds.
+    time_elapsed = 0
+    while not 'done' in operation:
+        if time_elapsed > timeout % period :
+            raise RuntimeError(status_timeout)
+        time_elapsed += 1
+        sleep(period)
+        operation = request.execute()
+
+    # this loop will check for updates every (period=5) seconds during
+    # (timeout=60) seconds.
+    time_elapsed = 0
+    while operation['done'] is False:
+        if time_elapsed > timeout % period :
+            raise RuntimeError(completion_timeout)
+        time_elapsed += 1
+        sleep(period)
+        operation = request.execute()
+
+    # after the operation 'done' is True, there should be either a response or
+    # error entry.
+    if 'error' in operation:
+        raise RuntimeError(f'operation ended in error: {str(operation)}')
+
+    if not 'response' in operation:
+        return {}
+
+    return operation['response']
 
 class WorkloadIdentityPool:
     """A class to represent a workload identity pool in Google Cloud.
@@ -206,7 +281,7 @@ def _create_pool(pool):
         )
 
         initial = request.execute()
-        result = watch(api=api, operation=initial)
+        result = _watch(api=api, operation=initial)
 
     existing_pool.update_from_dict(result)
 
@@ -248,7 +323,7 @@ def _update_pool(declared_pool, existing_pool):
         )
 
         initial = request.execute()
-        result = watch(api=api, operation=initial)
+        result = _watch(api=api, operation=initial)
 
     existing_pool.update_from_dict(result)
 
@@ -378,7 +453,7 @@ def _update_provider(declared_provider, existing_provider):
         )
 
         initial = request.execute()
-        result = watch(api=api, operation=initial)
+        result = _watch(api=api, operation=initial)
 
     existing_provider.update_from_dict(result)
 
@@ -442,7 +517,7 @@ def _create_provider(provider):
         )
 
         initial = request.execute()
-        result = watch(api=api, operation=initial)
+        result = _watch(api=api, operation=initial)
 
     existing_provider.update_from_dict(result)
 
@@ -450,7 +525,7 @@ def _create_provider(provider):
 
     return existing_provider
 
-def apply_pool(project, pool_id, description, display_name):
+def apply_pool(project, id, description, displayName):
     """
     Generate the workload identity pool and identity provider for terraform.
         Can either create, update or leave it as it is.
@@ -465,9 +540,9 @@ def apply_pool(project, pool_id, description, display_name):
     """
     declared_pool = WorkloadIdentityPool(
         project=project.name,
-        pool_id=pool_id,
+        pool_id=id,
         description=description,
-        display_name=display_name
+        display_name=displayName
     )
 
     try:
@@ -480,7 +555,7 @@ def apply_pool(project, pool_id, description, display_name):
 
     return pool
 
-def apply_provider(parent, provider_id, description, display_name, oidc, attribute_mapping, attribute_condition):
+def apply_provider(parent, id, description, displayName, oidc, attributeMapping, attributeCondition):
     """
     Generate the workload identity pool and identity provider for terraform.
         Can either create, update or leave it as it is.
@@ -495,12 +570,12 @@ def apply_provider(parent, provider_id, description, display_name, oidc, attribu
     """
     declared_provider = WorkloadIdentityProvider(
         parent=parent.name,
-        provider_id=provider_id,
+        provider_id=id,
         description=description,
-        display_name=display_name,
+        display_name=displayName,
         oidc=oidc,
-        attribute_mapping=attribute_mapping,
-        attribute_condition=attribute_condition
+        attribute_mapping=attributeMapping,
+        attribute_condition=attributeCondition
     )
 
     try:

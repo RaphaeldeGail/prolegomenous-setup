@@ -36,7 +36,7 @@ def _override(dict1, dict2):
             dict1[key] = dict2[key]
     return dict1
 
-def from_yaml(custom_config, offline):
+def from_yaml(custom_config):
     """
     Fetch configuration entries for a particular root structure. The entries
     are supposed to be stored in YAML files.
@@ -85,12 +85,11 @@ def from_yaml(custom_config, offline):
 
     # Fetch organization data
     org_domain = environment['googleOrganization']['displayName']
-    if not offline:
-        org = find_organization(org_domain)
+    org = find_organization(org_domain)
 
-        environment['googleOrganization']['name'] = org.name
-        dci = org.directory_customer_id
-        environment['googleOrganization']['directoryCustomerId'] = dci
+    environment['googleOrganization']['name'] = org.name
+    dci = org.directory_customer_id
+    environment['googleOrganization']['directoryCustomerId'] = dci
     # Merge all data
     environment.update(config)
 

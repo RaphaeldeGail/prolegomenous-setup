@@ -9,6 +9,7 @@ from pprint import pprint
 from random import randint
 from os import getenv
 from google.cloud.billing_v1 import BillingAccount
+# local imports
 from .config import from_yaml
 from .role import apply_role
 from .organization import control_access as org_access
@@ -22,7 +23,7 @@ from .project import (
 )
 from .workload import apply_pool, apply_provider
 from .service_account import (
-    apply_service_account,
+    apply_account,
     control_access as account_access
 )
 from .tag import apply_key, control_access as tag_access
@@ -31,19 +32,28 @@ from . import iam
 
 # Actions functions
 
-def show(setup, args):
+def show(setup):
+    """Show values of root structure.
 
-    # if pretty print
-    if args.p:
-        pprint(setup, indent=1, depth=2, compact=True)
-        
-        return None
-    
-    print(setup)
-    
+    Show the setup configuration values.
+
+    Args:
+        setup: dict, the declared setup.
+        args: argparse.Namespace, namespace of arguments from command-line.
+    """
+    pprint(setup, indent=1, depth=2, compact=True)
+
     return None
 
-def role(setup, args):
+def role(setup):
+    """Role setup for the root structure.
+
+    Setup the roles for the root structure.
+
+    Args:
+        setup: dict, the declared setup.
+        args: argparse.Namespace, namespace of arguments from command-line.
+    """
     org = setup['google']['organization']['name']
 
     name = 'executiveRole'
@@ -64,11 +74,19 @@ def role(setup, args):
 
     return None
 
-def build(setup, args):
+def build(setup):
+    """Build the root structure.
 
+    Build the root structure.
+
+    Args:
+        setup: dict, the declared setup.
+        args: argparse.Namespace, namespace of arguments from command-line.
+    """
     org = setup['googleOrganization']
 
     tfc_org = setup['terraformOrganization']
+    tfc_prj = setup['terraformProject']
 
     uuid = str(randint(1,999999))
     project = setup['rootProject']
@@ -84,10 +102,14 @@ def build(setup, args):
         'issuerUri': provider['oidc']['issuerUri']
     }
 
+    account = setup['builderAccount']
+
+    folder = setup['workspaceFolder']
+
     ##### Terraform Cloud #####
 
     print('generating Terraform Cloud project... ', end='')
-    tfc_wrk = apply_terraform(project=setup['terraformProject'], organization=tfc_org)
+    tfc_wrk = apply_terraform(project=tfc_prj, organization=tfc_org)
 
     print('DONE')
 
@@ -119,7 +141,7 @@ def build(setup, args):
     ##### Builder Service Account #####
 
     print('generating builder service account... ', end='')
-    builder_account = apply_service_account(project=root_project, **(setup['builderAccount']))
+    builder_account = apply_account(project=root_project, **(account))
 
     account_access(builder_account, iam.account(setup, org_pool, tfc_wrk))
     print('IAM policy set... ', end='')
@@ -139,9 +161,12 @@ def build(setup, args):
     ##### Workspace Folder #####
 
     print('generating workspace folder... ', end='')
-    workspace_folder = apply_folder(parent=org['name'], **(setup['workspaceFolder']))
+    workspace_folder = apply_folder(parent=org['name'], **(folder))
 
-    folder_access(workspace_folder, iam.workspace_folder(setup, builder_account))
+    folder_access(
+        workspace_folder,
+        iam.workspace_folder(setup, builder_account)
+    )
     print('IAM policy set... ', end='')
 
     print('DONE')
@@ -150,10 +175,14 @@ def build(setup, args):
 
     return None
 
-def billing(setup, args):
-    """
-    Main entry for the psetup-billing client.
+def billing(setup):
+    """Setup the billing config for the root structure.
 
+    Billing setup for the root structure.
+
+    Args:
+        setup: dict, the declared setup.
+        args: argparse.Namespace, namespace of arguments from command-line.
     """
     builder_email = getenv('BUILDER_EMAIL')
 
@@ -179,11 +208,11 @@ def billing(setup, args):
 command = {
     'prog': 'psetup',
     'description': 'Build an idempotent root structure.',
-    'epilog': 'More help on action commands with: %(prog)s {subcommand} -h.',
-    'options': {
-        '-f': {'dest': 'conf', 'help': 'Use a custom configuration file'},
-        '-o': {'action': 'store_true', 'help': 'Stay offline'},
-    }
+    'epilog': 'More help on action commands with: %(prog)s {subcommand} -h.'
+}
+
+options = {
+    '-f': {'dest': 'conf', 'help': 'Use a custom configuration file'},
 }
 
 actions = {
@@ -195,69 +224,52 @@ actions = {
     'show': {
         'description': 'Show values of root structure',
         'help': 'Show the setup configuration values',
-        'func': show,
-        'options': {
-            '-p': {
-                'help': 'Pretty print show on stdout',
-                'action': 'store_true'
-            }
-        }
+        'func': show
     },
     'role': {
         'description': 'Role setup for the root structure',
         'help': 'Setup the roles for the root structure',
-        'func': role,
-        'options': {}
+        'func': role
     },
     'build': {
         'description': 'Build the root structure',
         'help': 'Build the root structure',
-        'func': build,
-        'options': {}
+        'func': build
     },
     'billing': {
         'description': 'Billing setup for the root structure',
         'help': 'Setup the billing config for the root structure',
-        'func': billing,
-        'options': {}
+        'func': billing
     },
 }
-
-def set_options(parser, options):
-    for option in options:
-        option_config = options.get(option)
-        parser.add_argument(option, **option_config)
-
-    return None
 
 def main():
     """Main function for psetup client.
 
     This function parses all options and subcommands from command-line. After
     generating a configuration for the root structure, it delegates the
-    subsequent actions to specific action modules.
+    subsequent actions to specific action function.
     """
 
-    options = command.pop('options')
     parser = ArgumentParser(**command)
-    set_options(parser, options)
+    for option in options:
+        option_config = options.get(option)
+        parser.add_argument(option, **option_config)
 
     sub_command = actions.pop('metadata')
     subparsers = parser.add_subparsers(**sub_command)
 
     for action in actions:
         action_config = actions.get(action)
-        options = action_config.pop('options')
         func = action_config.pop('func')
         action_parser = subparsers.add_parser(action, **action_config)
         action_parser.set_defaults(func=func)
-        set_options(action_parser, options)
 
     # Parse arguments from command line
     args = parser.parse_args()
 
     # Read arguments values from config file
-    setup = from_yaml(args.conf, args.o)
+    setup = from_yaml(args.conf)
 
     # Launch the subcommand `main` function
-    args.func(setup, args)
+    args.func(setup)

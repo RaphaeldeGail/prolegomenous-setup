@@ -49,8 +49,8 @@ def organization(setup):
     iam = [
         #{ 'role': executive_role.name, 'members': [ exec_grp ] },
         { 'role': 'roles/billing.admin', 'members': [ fin_grp ] },
-        { 'role': 'roles/billing.creator', 'members': [ fin_grp ] },
-        { 'role': 'roles/essentialcontacts.admin', 'members': [ owner ] },
+        #{ 'role': 'roles/billing.creator', 'members': [ fin_grp ] },
+        #{ 'role': 'roles/essentialcontacts.admin', 'members': [ owner ] },
         { 'role': 'roles/iam.organizationRoleAdmin', 'members': [ adm_grp ] },
         { 'role': 'roles/orgpolicy.policyAdmin', 'members': [ pol_grp ] },
         { 'role': f'{prefix}Admin', 'members': [ adm_grp, owner ] },

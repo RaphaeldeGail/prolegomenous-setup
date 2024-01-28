@@ -50,7 +50,7 @@ def show(setup):
 def init(setup):
     """Initialize organization accesses.
 
-    Set the IAM policy at the organization for primary groups.
+    Set the IAM policy at the organization level for primary groups.
 
     Args:
         setup: dict, the declared setup.

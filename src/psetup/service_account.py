@@ -244,7 +244,7 @@ def control_access(service_account, policy):
 
     return None
 
-def apply_service_account(project, id, displayName, description):
+def apply(project, id, displayName, description):
     """Generate the builder servie account for the root structure.
     
     Can either create, update or leave it as it is.

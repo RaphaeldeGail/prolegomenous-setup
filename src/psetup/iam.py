@@ -39,15 +39,15 @@ class IamPolicy():
         else:
             self.bindings[binding['role']].extend(binding['members'])
 
-def organization(setup, executive_role):
+def organization(setup):
     prefix = 'roles/resourcemanager.organization'
     adm_grp = f'group:{setup["googleGroups"]["admins"]}'
-    exec_grp = f'group:{setup["googleGroups"]["executive"]}'
+    #exec_grp = f'group:{setup["googleGroups"]["executive"]}'
     fin_grp = f'group:{setup["googleGroups"]["finops"]}'
     pol_grp = f'group:{setup["googleGroups"]["policy"]}'
     owner = f'user:{setup["owner"]}'
     iam = [
-        { 'role': executive_role.name, 'members': [ exec_grp ] },
+        #{ 'role': executive_role.name, 'members': [ exec_grp ] },
         { 'role': 'roles/billing.admin', 'members': [ fin_grp ] },
         { 'role': 'roles/billing.creator', 'members': [ fin_grp ] },
         { 'role': 'roles/essentialcontacts.admin', 'members': [ owner ] },
@@ -112,7 +112,7 @@ def billing_account(email):
     iam = [
         {'members': [ mail ], 'role': 'roles/billing.user'},
         {'members': [ mail ], 'role': 'roles/billing.costsManager'},
-        {'members': [ mail ], 'role': 'roles/iam.securityAdmin'}
+        #{'members': [ mail ], 'role': 'roles/iam.securityAdmin'}
     ]
 
     return IamPolicy(iam)

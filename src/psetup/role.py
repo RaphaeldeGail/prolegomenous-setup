@@ -186,7 +186,10 @@ def _diff(declared, existing):
     mask = []
 
     for attr in existing.__dict__.keys():
-        if getattr(existing, attr) != getattr(declared, attr):
+        if isinstance(getattr(existing, attr), list):
+            if set(getattr(existing, attr)) != set(getattr(declared, attr)):
+                mask.append(attr)
+        elif getattr(existing, attr) != getattr(declared, attr):
             mask.append(attr)
 
     return mask
@@ -219,14 +222,20 @@ def _get_role(role):
         while request is not None:
             results = request.execute()
 
-            for result in results['roles']:
-                if result['name'] == role.name:
-                    existing = result
+            if 'roles' in results:
+                for result in results['roles']:
+                    if result['name'] == role.name:
+                        existing = result
 
             request = api.list_next(request, results)
 
     if existing is None:
         raise IndexError(0)
+
+    # Only the get method can render the includedPermissions in its response
+    with build('iam', 'v1').organizations().roles() as api:
+        request = api.get(name=existing['name'])
+        existing = request.execute()
 
     existing_role.update_from_dict(existing)
 

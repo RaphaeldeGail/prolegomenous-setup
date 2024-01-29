@@ -1,3 +1,5 @@
+from google.iam.v1.policy_pb2 import Policy
+
 class IamPolicy():
     """A class to represent a service account in Google Cloud project.
 
@@ -46,18 +48,25 @@ def organization(setup):
     fin_grp = f'group:{setup["googleGroups"]["finops"]}'
     pol_grp = f'group:{setup["googleGroups"]["policy"]}'
     owner = f'user:{setup["owner"]}'
-    iam = [
-        #{ 'role': executive_role.name, 'members': [ exec_grp ] },
-        { 'role': 'roles/billing.admin', 'members': [ fin_grp ] },
-        #{ 'role': 'roles/billing.creator', 'members': [ fin_grp ] },
-        #{ 'role': 'roles/essentialcontacts.admin', 'members': [ owner ] },
-        { 'role': 'roles/iam.organizationRoleAdmin', 'members': [ adm_grp ] },
-        { 'role': 'roles/orgpolicy.policyAdmin', 'members': [ pol_grp ] },
-        { 'role': f'{prefix}Admin', 'members': [ adm_grp, owner ] },
-        { 'role': f'{prefix}Viewer', 'members': [ fin_grp, pol_grp ] }
-    ]
 
-    return IamPolicy(iam)
+    iam = Policy()
+    iam.bindings.add(role='roles/billing.admin', members=[ fin_grp ])
+    iam.bindings.add(role='roles/iam.organizationRoleAdmin', members=[ adm_grp ])
+    iam.bindings.add(role='roles/orgpolicy.policyAdmin', members=[ pol_grp ])
+    iam.bindings.add(role=f'{prefix}Admin', members=[ adm_grp, owner ])
+    iam.bindings.add(role=f'{prefix}Viewer', members=[ fin_grp, pol_grp ])
+    # iam = [
+    #     #{ 'role': executive_role.name, 'members': [ exec_grp ] },
+    #     { 'role': 'roles/billing.admin', 'members': [ fin_grp ] },
+    #     #{ 'role': 'roles/billing.creator', 'members': [ fin_grp ] },
+    #     #{ 'role': 'roles/essentialcontacts.admin', 'members': [ owner ] },
+    #     { 'role': 'roles/iam.organizationRoleAdmin', 'members': [ adm_grp ] },
+    #     { 'role': 'roles/orgpolicy.policyAdmin', 'members': [ pol_grp ] },
+    #     { 'role': f'{prefix}Admin', 'members': [ adm_grp, owner ] },
+    #     { 'role': f'{prefix}Viewer', 'members': [ fin_grp, pol_grp ] }
+    # ]
+
+    return iam
 
 def project(setup):
     iam = [{

@@ -9,6 +9,7 @@ from pprint import pprint
 from random import randint
 from os import getenv
 from google.cloud.billing_v1 import BillingAccount
+from google.iam.v1.policy_pb2 import Policy
 # local imports
 from .config import from_yaml
 from .role import apply_role
@@ -93,7 +94,10 @@ def role(setup):
 
     print('DONE')
 
-    add_org_access(org, {'role': executive_role.name, 'members': [ member ]})
+    policy = Policy()
+    policy.bindings.add(role=executive_role.name, members=[ member ])
+
+    add_org_access(org, policy)
 
     print('IAM policy set... ', end='')
     print('DONE')

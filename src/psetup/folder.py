@@ -31,7 +31,7 @@ def _create_folder(folder):
     client = FoldersClient()
     request = CreateFolderRequest(folder=folder)
 
-    operation = client.create_project(request=request)
+    operation = client.create_folder(request=request)
     response = operation.result()
 
     print('folder created... ', end='')
@@ -82,7 +82,7 @@ def control_access(folder, policy):
     client = FoldersClient()
     request = SetIamPolicyRequest(
         resource=folder.name,
-        policy=policy.format
+        policy=policy
     )
 
     client.set_iam_policy(request=request)

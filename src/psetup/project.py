@@ -25,6 +25,8 @@ from google.cloud.billing_v1 import (
     UpdateProjectBillingInfoRequest
 )
 
+from google.longrunning.operations_pb2 import GetOperationRequest
+
 def _create_project(project):
     """Create a project according to a declared project.
 
@@ -103,7 +105,7 @@ def control_access(project, policy):
     client = ProjectsClient()
     request = SetIamPolicyRequest(
         resource=project.name,
-        policy=policy.format
+        policy=policy
     )
 
     client.set_iam_policy(request=request)
@@ -125,7 +127,9 @@ def enable_services(project, services):
     )
 
     operation = client.batch_enable_services(request=request)
-    operation.result()
+    # Waiting loop for the operation to end
+    while not operation.done():
+        print('... ', end='')
 
     return None
 

@@ -178,7 +178,7 @@ def build(setup):
 
     builder_account = apply_account(project=root_project, **(account))
 
-    set_account_access(builder_account, iam.account(setup, org_pool, tfc_id))
+    set_account_access(builder_account, iam.account(setup, org_pool, tfc_id.id))
 
     print('IAM policy set... ', end='')
     print('DONE')
@@ -212,34 +212,6 @@ def build(setup):
 
     return None
 
-def billing(setup):
-    """Configure the billing of the root structure.
-
-    Add access to the root billing account for the builder account.
-
-    Args:
-        setup: dict, the declared setup.
-    """
-    builder_email = getenv('BUILDER_EMAIL')
-
-    if builder_email is None:
-        raise ValueError('BUILDER_EMAIL environment variable empty')
-
-    billing_account_iam = iam.billing_account(builder_email)
-
-    billing_account = BillingAccount(
-        name=f'billingAccounts/{setup["billingAccount"]}'
-    )
-
-    ##### Billing Account #####
-
-    print('generating billing account... ', end='')
-
-    set_billing_access(billing_account, billing_account_iam)
-
-    print('DONE')
-
-    return None
 
 command = {
     'prog': 'psetup',
@@ -257,7 +229,7 @@ sub_command = {
         'help': 'Select one action, preferably following the list order.'
 }
 
-actions = [show, init, role, build, billing]
+actions = [show, init, role, build]
 
 def main():
     """Main function for psetup client.

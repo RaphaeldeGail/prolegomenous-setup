@@ -214,7 +214,7 @@ def _get_sa(sa):
         while request is not None:
             results = request.execute()
 
-            for result in results['accounts']:
+            for result in results.get('accounts', []):
                 if result['name'] == sa.name:
                     existing = result
 
@@ -236,7 +236,8 @@ def control_access(service_account, policy):
         policy: dict, list all `bindings` to apply to the account policy.
     """
     # Match the body to the definition of service account setIamPolicy method.
-    body = { 'policy': policy.format }
+    # members is of type RepeatedScalerContainer and must be set to a list.
+    body = {'policy': {'bindings': [{'role': binding.role, 'members': list(binding.members)} for binding in policy.bindings]}}
 
     with build('iam', 'v1').projects().serviceAccounts() as api:
         request = api.setIamPolicy(resource=service_account.name, body=body)

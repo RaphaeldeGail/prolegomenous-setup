@@ -11,6 +11,7 @@ Typical usage example:
 
 from yaml import safe_load
 from sys import prefix
+from site import USER_BASE
 from os.path import isfile
 from os import getenv
 
@@ -44,7 +45,10 @@ def from_yaml(custom_config):
     Returns:
         dict, the full configuration for the root structure.
     """
+
     default_config = f'{prefix}/config/psetup/default.yaml'
+    if not isfile(default_config):
+        default_config = f'{USER_BASE}/config/psetup/default.yaml'
 
     google_organization = getenv('GOOGLE_ORGANIZATION', None)
     google_billing_account = getenv('GOOGLE_BILLING_ACCOUNT', None)

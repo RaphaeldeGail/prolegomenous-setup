@@ -3,6 +3,15 @@ from setuptools import find_packages, setup
 with open('README.md', 'r') as f:
     long_description = f.read()
 
+dependencies = [
+    'google-api-python-client >= 2.89.0',
+    'google-cloud-billing >= 1.12.0',
+    'google-cloud-resource-manager >= 1.10.4',
+    'google-cloud-service-usage >= 1.8.0',
+    'grpc-google-iam-v1 >= 0.12.7',
+    'terrasnek >= 0.1.13',
+]
+
 setup(
         name='psetup',
         version='0.2.0',
@@ -15,7 +24,7 @@ setup(
         packages=find_packages('src'),
         package_dir={'': 'src'},
         data_files=[('config/psetup', ['default.yaml'])],
-        install_requires=[],
+        install_requires=dependencies,
         python_requires='>=3.9',
         entry_points={
             'console_scripts': [

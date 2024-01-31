@@ -136,7 +136,7 @@ def _get_project(declared_project):
 
     projects = api.projects.list_all(query=declared_project.attributes['name'])
 
-    if projects is None:
+    if not projects.get('data', []):
         raise IndexError(0)
 
     existing_project.update_from_dict(projects['data'][0])

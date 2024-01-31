@@ -360,14 +360,14 @@ def _get_pool(pool):
         while request is not None:
             results = request.execute()
 
-            for result in results['workloadIdentityPools']:
+            for result in results.get('workloadIdentityPools', []):
                 if result['name'] == pool.name:
                     existing = result
 
             request = api.list_next(request, results)
 
     if existing is None:
-        raise ValueError(0)
+        raise IndexError(0)
 
     existing_pool.update_from_dict(existing)
 
@@ -403,14 +403,14 @@ def _get_provider(provider):
         while request is not None:
             results = request.execute()
 
-            for result in results['workloadIdentityPoolProviders']:
+            for result in results.get('workloadIdentityPoolProviders', []):
                 if result['name'] == provider.name:
                     existing = result
 
             request = api.list_next(request, results)
 
     if existing is None:
-        raise ValueError(0)
+        raise IndexError(0)
 
     existing_provider.update_from_dict(existing)
 
@@ -509,7 +509,7 @@ def _create_provider(provider):
         parent=provider.parent
     )
 
-    with build('iam', 'v1').projects().locations().workloadIdentityPools() as api:
+    with build('iam', 'v1').projects().locations().workloadIdentityPools().providers() as api:
         request = api.create(
             parent=provider.parent,
             body=body,

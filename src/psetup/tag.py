@@ -93,7 +93,7 @@ def _get_key(key):
         google.cloud.resourcemanager_v3.types.TagKey, the existing tag key.
 
     Raises:
-        ValueError, if there is no tag key matching the definition.
+        IndexError, if there is no tag key matching the definition.
     """
     parent = key.parent
     existing = None
@@ -108,7 +108,7 @@ def _get_key(key):
             existing = result
 
     if existing is None:
-        raise ValueError(0)
+        raise IndexError(0)
 
     return existing
 
@@ -201,7 +201,7 @@ def _get_value(value):
         google.cloud.resourcemanager_v3.types.TagValue, the existing tag value.
 
     Raises:
-        ValueError, if there is no tag value matching the definition.
+        IndexError, if there is no tag value matching the definition.
     """
     parent = value.parent
     existing = None
@@ -216,7 +216,7 @@ def _get_value(value):
             existing = result
 
     if existing is None:
-        raise ValueError(0)
+        raise IndexError(0)
 
     return existing
 
@@ -233,7 +233,7 @@ def _get_binding(binding):
             tag binding.
 
     Raises:
-        ValueError, if there is no tag binding matching the definition.
+        IndexError, if there is no tag binding matching the definition.
     """
     existing = None
 
@@ -249,7 +249,7 @@ def _get_binding(binding):
             existing = response
 
     if existing is None:
-        raise ValueError(0)
+        raise IndexError(0)
 
     return existing
 
@@ -286,7 +286,7 @@ def control_access(key, policy):
     client = TagKeysClient()
     request = SetIamPolicyRequest(
         resource=key.name,
-        policy=policy.format
+        policy=policy
     )
 
     client.set_iam_policy(request=request)

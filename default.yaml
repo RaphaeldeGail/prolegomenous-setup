@@ -1,5 +1,11 @@
 ---
 terraformProject: 'Workspaces'
+credentialsVariableSet:
+  name: 'Workspace Credentials'
+  description: 'Secret credentials for workspace building.'
+organizationVariableSet:
+  name: 'Organization Set'
+  description: 'Variables at the organization scope.'
 rootProject:
   displayName: 'root'
   labels:

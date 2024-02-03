@@ -17,8 +17,8 @@ from .organization import (
     control_access as set_org_access,
     add_access as add_org_access
 )
-from .billing import control_access as set_billing_access
 from .terraform import apply_project as apply_terraform
+from .terraform_variable import apply_variableset
 from .project import (
     apply_project,
     enable_services,
@@ -206,6 +206,19 @@ def build(setup):
     )
 
     print('IAM policy set... ', end='')
+    print('DONE')
+
+    ##### Terraform Variable Sets #####
+
+    print('generating variable set... ', end='')
+
+    apply_variableset(
+        org_id=tfc_org,
+        name=setup['credentialsVariableSet']['name'],
+        description=setup['credentialsVariableSet']['description'],
+        project=tfc_id.id
+    )
+
     print('DONE')
 
     ##### END #####

@@ -253,7 +253,7 @@ def _get_variable(org_id, varset_id, declared_variable):
 
     return existing_variable
 
-def apply_variable(org_id, varset_id, key, value, sensitive, category ,hcl, description=None):
+def apply_variable(org_id, varset_id, key, value, category, sensitive=False,hcl=False, description=None):
     """Generate the builder servie account for the root structure.
     
     Can either create, update or leave it as it is.
@@ -287,6 +287,45 @@ def apply_variable(org_id, varset_id, key, value, sensitive, category ,hcl, desc
     return variable
 
 def _create_variableset(org_id, declared_variableset):
+    """
+    Create a service account according to a declared one.
+
+    Args:
+        sa: ServiceAccount, the delcared service account.
+
+    Returns:
+        ServiceAccount, the service account created from the operation.
+    """
+    body = {
+        "data": {
+            "type": "varsets",
+            "attributes": declared_variableset.attributes,
+            "relationships": {
+                "projects": {
+                    "data": [
+                        {
+                            "id": project['id'],
+                            "type": "projects"
+                        } for project in declared_variableset.projects
+                    ]
+                }
+            }
+        }
+    }
+
+    existing_variableset = VariableSet(
+        name=declared_variableset.attributes['name']
+    )
+
+    result = _build(org_id).var_sets.create(body)
+
+    print('Terraform Cloud variableset created... ', end='')
+
+    existing_variableset.update_from_dict(result['data'])
+
+    return existing_variableset
+
+def _update_variableset(org_id, declared_variableset, existing_variableset):
     return None
 
 def _get_variableset(org_id, declared_variableset):
@@ -347,5 +386,7 @@ def apply_variableset(org_id, name, description, project):
     except IndexError as e:
         if e.args[0] == 0:
             variableset = _create_variableset(org_id, declared_variableset)
+
+    variableset = _update_variableset(org_id, declared_variableset, variableset)
 
     return variableset

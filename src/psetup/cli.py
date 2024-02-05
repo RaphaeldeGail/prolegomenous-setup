@@ -18,7 +18,7 @@ from .organization import (
     add_access as add_org_access
 )
 from .terraform import apply_project as apply_terraform
-from .terraform_variable import apply_variableset
+from .terraform_variable import apply_variableset, apply_variable
 from .project import (
     apply_project,
     enable_services,
@@ -168,7 +168,7 @@ def build(setup):
 
     org_pool = apply_pool(project=root_project, **(setup['organizationPool']))
 
-    apply_provider(parent = org_pool, **provider)
+    provider = apply_provider(parent = org_pool, **provider)
 
     print('DONE')
 
@@ -212,11 +212,120 @@ def build(setup):
 
     print('generating variable set... ', end='')
 
-    apply_variableset(
+    creds_varset = apply_variableset(
         org_id=tfc_org,
         name=setup['credentialsVariableSet']['name'],
         description=setup['credentialsVariableSet']['description'],
         project=tfc_id.id
+    )
+
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=creds_varset.id,
+        key='project',
+        value=tfc_id.id,
+        sensitive=True,
+        category='terraform',
+        hcl=False,
+        description='The ID of the root project for the organization. Used to create workspaces.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=creds_varset.id,
+        key='TFC_GCP_WORKLOAD_PROVIDER_NAME',
+        value=provider.name,
+        sensitive=False,
+        category='env',
+        hcl=False,
+        description='The canonical name of the workload identity provider. This must be in the form projects/{project_number}/locations/global/workloadIdentityPools/{workload_identity_pool_id}/providers/{workload_identity_pool_provider_id}.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=creds_varset.id,
+        key='TFC_GCP_WORKLOAD_IDENTITY_AUDIENCE',
+        value=provider.oidc['allowedAudiences'][0],
+        sensitive=False,
+        category='env',
+        hcl=False,
+        description='Will be used as the aud claim for the identity token.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=creds_varset.id,
+        key='TFC_GCP_PROVIDER_AUTH',
+        value='true',
+        sensitive=False,
+        category='env',
+        hcl=False,
+        description='Must be present and set to true, or Terraform Cloud will not attempt to use dynamic credentials to authenticate to GCP.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=creds_varset.id,
+        key='TFC_GCP_RUN_SERVICE_ACCOUNT_EMAIL',
+        value=builder_account.email,
+        sensitive=True,
+        category='env',
+        hcl=False,
+        description='The service account email Terraform Cloud will use when authenticating to GCP.',
+    )
+
+    org_varset = apply_variableset(
+        org_id=tfc_org,
+        name=setup['organizationVariableSet']['name'],
+        description=setup['organizationVariableSet']['description'],
+        glob=True
+    )
+
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=org_varset.id,
+        key='organization',
+        value=org['displayName'],
+        sensitive=False,
+        category='terraform',
+        hcl=False,
+        description='Name, or domain, of the organization hosting the workspace.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=org_varset.id,
+        key='region',
+        value='europe-west1',
+        sensitive=False,
+        category='terraform',
+        hcl=False,
+        description='Geographical *region* for Google Cloud Platform.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=org_varset.id,
+        key='workspaces_tag_key',
+        value=workspace_tag_key.name,
+        sensitive=False,
+        category='terraform',
+        hcl=False,
+        description='The ID of \\\"workspace\\\" tag key.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=org_varset.id,
+        key='customer_directory',
+        value=org['directoryCustomerId'],
+        sensitive=False,
+        category='terraform',
+        hcl=False,
+        description='The ID of the Google Cloud Identity directory.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=org_varset.id,
+        key='workspaces_folder',
+        value=workspace_folder.name,
+        sensitive=False,
+        category='terraform',
+        hcl=False,
+        description='The ID of the \\\"Workspaces\\\" folder that contains all subsequent workspaces.',
     )
 
     print('DONE')

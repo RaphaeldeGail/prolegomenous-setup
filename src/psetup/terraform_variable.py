@@ -81,22 +81,24 @@ class Variable:
 
 class VariableSet:
 
-    def __init__(self, id=None, name=None, description=None, project=None):
+    def __init__(self, id=None, name=None, description=None, project=None, glob=False):
         self.id = id
         self.attributes = {
             "name": name,
             "description": description,
-            "global": False,
+            "global": glob,
             "priority": False
         }
-        self.projects = [
-          {
-            "id": project,
-            "type": "projects"
-          }
-        ]
+        if project is not None:
+            self.projects = [
+                {
+                    "id": project,
+                    "type": "projects"
+                }
+            ]
+        else:
+            self.projects = []
         
-
     def update_from_dict(self, body):
         """Update the instance from a dictionnary.
 
@@ -281,6 +283,8 @@ def apply_variable(org_id, varset_id, key, value, category, sensitive=False,hcl=
     except IndexError as e:
         if e.args[0] == 0:
             variable = _create_variable(org_id, varset_id, declared_variable)
+            
+            return variable
 
     variable = _update_variable(org_id, varset_id, declared_variable, variable)
 
@@ -326,7 +330,50 @@ def _create_variableset(org_id, declared_variableset):
     return existing_variableset
 
 def _update_variableset(org_id, declared_variableset, existing_variableset):
-    return None
+    """
+    Update an existing workload identity provider compared to a declared one.
+
+    Args:
+        declared_provider: WorkloadIdentityProvider, the declared workload
+            identity provider.
+        existing_provider: WorkloadIdentityProvider, the existing workload
+            identity provider.
+
+    Returns:
+        WorkloadIdentityProvider, the workload identity provider updated from
+            the operation.
+    """
+    mask = existing_variableset.diff(declared_variableset)
+
+    # If there is non differences, return the original existing variable.
+    if not mask:
+        return existing_variableset
+
+    body = {
+        'data': {
+            'type': 'varsets',
+            'attributes': declared_variableset.attributes,
+            'relationships': {
+                'projects': {
+                    'data': [
+                        {
+                            'id': project['id'],
+                            'type': 'projects'
+                        } for project in declared_variableset.projects if declared_variableset.projects
+                    ]
+                },
+            }
+
+        }
+    }
+
+    result = _build(org_id).var_sets.update(existing_variableset.id, body)
+
+    existing_variableset.update_from_dict(result['data'])
+
+    print('variable updated... ', end='')
+
+    return existing_variableset
 
 def _get_variableset(org_id, declared_variableset):
     """
@@ -361,7 +408,7 @@ def _get_variableset(org_id, declared_variableset):
 
     return existing_variableset
 
-def apply_variableset(org_id, name, description, project):
+def apply_variableset(org_id, name, description, project=None, glob=False):
     """Generate the builder servie account for the root structure.
     
     Can either create, update or leave it as it is.
@@ -378,7 +425,8 @@ def apply_variableset(org_id, name, description, project):
     declared_variableset = VariableSet(
         name=name,
         description=description,
-        project=project
+        project=project,
+        glob=glob
     )
 
     try:

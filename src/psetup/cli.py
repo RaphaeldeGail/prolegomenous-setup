@@ -7,8 +7,6 @@ list of subcommands. Each subcommand then leads to an executive function.
 from argparse import ArgumentParser
 from pprint import pprint
 from random import randint
-from os import getenv
-from google.cloud.billing_v1 import BillingAccount
 from google.iam.v1.policy_pb2 import Policy
 # local imports
 from .config import from_yaml
@@ -37,9 +35,10 @@ from . import iam
 # Actions functions
 
 def show(setup):
-    """Show values used for the root structure.
+    """Show the values used for a root structure.
 
-    Display the setup configuration values as a map on standard output.
+    Display the setup configuration as a map on standard output. Long entries
+    will be cut on display.
 
     Args:
         setup: dict, the declared setup.
@@ -49,9 +48,12 @@ def show(setup):
     return None
 
 def init(setup):
-    """Initialize organization accesses.
+    """Initialize the organization access.
 
-    Set the IAM policy at the organization level for primary groups.
+    Set the IAM policy at the organization level for the top-level groups. If
+    you initialize an organization with a root structure, you will be set back
+    to top-level group access and lose almost all access to your root
+    structure.
 
     Args:
         setup: dict, the declared setup.
@@ -68,9 +70,11 @@ def init(setup):
     return None
 
 def role(setup):
-    """Create IAM roles for the root structure.
+    """Create the IAM roles for a root structure.
 
-    Create the executive and builder roles at the organization level.
+    Create the "executive" and "builder" IAM roles at the organization level.
+    Existing roles will be updated or left as it is, according to the setup
+    plan.
 
     Args:
         setup: dict, the declared setup.
@@ -105,9 +109,10 @@ def role(setup):
     return None
 
 def build(setup):
-    """Build the root structure.
+    """Build the elements of a root structure.
 
-    Create base resources from Terraform Cloud and Google Cloud.
+    Create the various resources on Terraform Cloud and Google Cloud. Existing
+    roles will be updated or left as it is, according to the setup plan.
 
     Args:
         setup: dict, the declared setup.
@@ -135,7 +140,7 @@ def build(setup):
 
     folder = setup['workspaceFolder']
 
-    ##### Terraform Cloud #####
+    ##### Terraform Cloud Project #####
 
     print('generating Terraform Cloud project... ', end='')
 
@@ -227,7 +232,8 @@ def build(setup):
         sensitive=True,
         category='terraform',
         hcl=False,
-        description='The ID of the root project for the organization. Used to create workspaces.',
+        description='The ID of the root project for the organization. \
+            Used to create workspaces.',
     )
     apply_variable(
         org_id=tfc_org,
@@ -237,7 +243,7 @@ def build(setup):
         sensitive=False,
         category='env',
         hcl=False,
-        description='The canonical name of the workload identity provider. This must be in the form projects/{project_number}/locations/global/workloadIdentityPools/{workload_identity_pool_id}/providers/{workload_identity_pool_provider_id}.',
+        description='The canonical name of the workload identity provider.',
     )
     apply_variable(
         org_id=tfc_org,
@@ -257,7 +263,8 @@ def build(setup):
         sensitive=False,
         category='env',
         hcl=False,
-        description='Must be present and set to true, or Terraform Cloud will not attempt to use dynamic credentials to authenticate to GCP.',
+        description='Must be present and set to true, or Terraform Cloud will \
+            not attempt to use dynamic credentials to authenticate to GCP.',
     )
     apply_variable(
         org_id=tfc_org,
@@ -267,7 +274,8 @@ def build(setup):
         sensitive=True,
         category='env',
         hcl=False,
-        description='The service account email Terraform Cloud will use when authenticating to GCP.',
+        description='The service account email Terraform Cloud will use when \
+            authenticating to GCP.',
     )
 
     org_varset = apply_variableset(
@@ -285,7 +293,7 @@ def build(setup):
         sensitive=False,
         category='terraform',
         hcl=False,
-        description='Name, or domain, of the organization hosting the workspace.',
+        description='Name or domain of the organization hosting the workspace.',
     )
     apply_variable(
         org_id=tfc_org,
@@ -325,7 +333,8 @@ def build(setup):
         sensitive=False,
         category='terraform',
         hcl=False,
-        description='The ID of the \\\"Workspaces\\\" folder that contains all subsequent workspaces.',
+        description='The ID of the \\\"Workspaces\\\" folder that contains all \
+            subsequent workspaces.',
     )
 
     print('DONE')
@@ -334,6 +343,7 @@ def build(setup):
 
     return None
 
+# Base client configuration
 
 command = {
     'prog': 'psetup',
@@ -358,7 +368,7 @@ def main():
 
     This function parses all options and subcommands from command-line. After
     generating a configuration for the root structure, it delegates the
-    subsequent actions to specific action function.
+    subsequent actions to specific executive function.
     """
 
     parser = ArgumentParser(**command)

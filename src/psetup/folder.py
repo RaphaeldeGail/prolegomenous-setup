@@ -1,11 +1,14 @@
 """Generate a folder idempotently.
 
 Can apply a specific configuration for a folder and create or update it in
-order to match the configuration.
+order to match the configuration. The folder IAM policy can also be updated
+with this module.
 
 Typical usage example:
 
-  folder = generate_folder(setup, builder_email)
+  folder = folder.apply_folder(parent='folderParent', displayName='folderName')
+
+  folder.control_access(folder, policy={folderPolicy})
 """
 
 from google.cloud.resourcemanager_v3 import (
@@ -16,13 +19,12 @@ from google.cloud.resourcemanager_v3 import (
 )
 from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
 
-def _create_folder(folder):
-    """
-    Create a folder according to a declared folder.
+def _create(folder):
+    """Create a folder according to a resource declaration.
 
     Args:
         folder: google.cloud.resourcemanager_v3.types.Folder, the declared
-            folder.
+            resource.
 
     Returns:
         google.cloud.resourcemanager_v3.types.Folder, the folder created from
@@ -34,25 +36,23 @@ def _create_folder(folder):
     operation = client.create_folder(request=request)
     response = operation.result()
 
-    print('folder created... ', end='')
+    print('... folder created... ')
 
     return response
 
-def _get_folder(folder):
-    """
-    Get the existing folder in Google organization corresponding to the
-        declared folder.
+def _get(folder):
+    """Get the existing folder corresponding to the declared resource.
 
     Args:
         folder: google.cloud.resourcemanager_v3.types.Folder, the delcared
-            folder.
+            resource.
 
     Returns:
         google.cloud.resourcemanager_v3.types.Folder, the existing folder if
             it exists.
 
     Raises:
-        ValueError, if there is no folder matching the declared folder.
+        IndexError, matching folders amount to 0.
     """
     existing = None
 
@@ -70,14 +70,13 @@ def _get_folder(folder):
 
     return existing
 
-def control_access(folder, policy):
-    """
-    Apply IAM policy to the folder.
+def control(folder, policy):
+    """Apply IAM policy to the folder.
 
     Args:
         folder: google.cloud.resourcemanager_v3.types.Folder, the delcared
-            folder.
-        policy: dict, list all `bindings` to apply to the folder policy.
+            resource.
+        policy: google.iam.v1.policy_pb2.Policy, the policy to apply.
     """
     client = FoldersClient()
     request = SetIamPolicyRequest(
@@ -89,17 +88,18 @@ def control_access(folder, policy):
 
     return None
 
-def apply_folder(parent, displayName):
-    """
-    Generate the workspaces folder. Can either create, update or leave it as it
-        is. The folder is also updated with a new IAM policy.
+def apply(parent, displayName):
+    """Generate the workspaces folder.
+    
+    Can either create, update or leave it as it is.
 
     Args:
-        setup: dict, the configuration used to build the root structure.
-        builder_email: string, the email of the builder service account.
+        parent: string, the name of the parent hosting the folder.
+        displayName: string, the user-friendly name of the folder.
 
     Returns:
-        google.cloud.resourcemanager_v3.types.Folder, the generated folder.
+        google.cloud.resourcemanager_v3.types.Folder, the folder generated
+            according to the declaration.
     """
     declared_folder = Folder(
         parent=parent,
@@ -107,9 +107,9 @@ def apply_folder(parent, displayName):
     )
 
     try:
-        folder = _get_folder(declared_folder)
+        folder = _get(declared_folder)
     except IndexError as e:
         if e.args[0] == 0:
-            folder = _create_folder(declared_folder)
+            folder = _create(declared_folder)
 
     return folder

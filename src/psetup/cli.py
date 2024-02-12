@@ -29,7 +29,7 @@ from .service_account import (
     control_access as set_account_access
 )
 from .tag import apply_key, control_access as set_tag_access
-from .folder import apply_folder, control_access as set_folder_access
+from .folder import apply as apply_folder, control as set_folder_access
 from . import iam
 
 # Actions functions

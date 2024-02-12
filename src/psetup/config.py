@@ -2,7 +2,8 @@
 
 The `config` module will look for a standard configuration file and a specific
 environment file, both in YAML format, to generate the setup values to build
-the root structure.
+the root structure. Standard configuration is first read and then its entries
+are superseded by any present in the custom configuration.
 
 Typical usage example:
 
@@ -17,38 +18,55 @@ from os import getenv
 
 from .organization import find_organization
 
-def _override(dict1, dict2):
-    """
-    Override a dictionary entry, keys by keys subkeys by subkeys.
+def _override(base, update):
+    """Override a dictionary entry, keys by keys subkeys by subkeys.
 
     Args:
-        dict1: dict, the dictionnary to be updated.
-        dict2: dict, the dictionnary with entries to be updated.
+        base: dict, the dictionnary to be updated.
+        update: dict, the dictionnary that updates.
 
     Returns:
         dict, the updated dictionnary.
     """
-    for key,value in dict1.items():
-        if not key in dict2:
-            continue
+    for key,value in update.items():
         if isinstance(value, dict):
-            dict1[key] = _override(dict1[key], dict2[key])
+            base[key] = _override(base[key], value)
         else:
-            dict1[key] = dict2[key]
-    return dict1
+            base[key] = value
+    return base
 
-def from_yaml(custom_config):
-    """
-    Fetch configuration entries for a particular root structure. The entries
-    are supposed to be stored in YAML files.
+def from_yaml(custom_config=None):
+    """Fetch configuration entries for a particular root structure.
+    
+    The configuration entries are supposed to be stored in YAML files. The
+    default file comes in the PyPi package and the custom one remains optional.
+    Users may need it to override specific entries. The function also fetch
+    environment values from environment variables to complete the
+    configuration.
+
+    Args:
+        custom_config: str, a user-specified file for the configuration.
+            Defaults to None.
 
     Returns:
         dict, the full configuration for the root structure.
-    """
 
-    default_config = f'{prefix}/config/psetup/default.yaml'
-    if not isfile(default_config):
-        default_config = f'{USER_BASE}/config/psetup/default.yaml'
+    Raises:
+        FileNotFoundError: if no configuration file is found.
+    """
+    files = []
+    default_system_config = f'{prefix}/config/psetup/default.yaml'
+    default_user_config = f'{USER_BASE}/config/psetup/default.yaml'
+
+    if isfile(default_system_config):
+        files.append(default_system_config)
+    if isfile(default_user_config):
+        files.append(default_user_config)
+    if custom_config and isfile(custom_config):
+        files.append(custom_config)
+
+    if not files:
+        raise FileNotFoundError('No default configuration file')
 
     google_organization = getenv('GOOGLE_ORGANIZATION', None)
     google_billing_account = getenv('GOOGLE_BILLING_ACCOUNT', None)
@@ -59,8 +77,15 @@ def from_yaml(custom_config):
     executive_group = getenv('EXECUTIVE_GROUP', None)
     tfc_organization = getenv('TFC_ORGANIZATION', None)
 
+    # Fetch organization data
+    org = find_organization(google_organization)
+
     environment = {
-        'googleOrganization': { 'displayName': google_organization },
+        'googleOrganization': {
+            'name': org.name,
+            'displayName': google_organization,
+            'directoryCustomerId': org.directory_customer_id
+        },
         'billingAccount': google_billing_account,
         'owner':  external_owner,
         'googleGroups': {
@@ -72,29 +97,13 @@ def from_yaml(custom_config):
         'terraformOrganization': tfc_organization
     }
 
+    config = {}
     # Load data from default configuration file
-    try:
-        with open(default_config, 'r', encoding='utf-8') as f:
-            config = safe_load(f)
-    except FileNotFoundError as e:
-        raise FileNotFoundError('Default configuration file not found') from e
-
-    # Load data from user configuration file
-    try:
-        with open(custom_config, 'r', encoding='utf-8') as f:
+    for file in files:
+        with open(file, 'r', encoding='utf-8') as f:
             update = safe_load(f)
         config = _override(config, update)
-    except TypeError:
-        pass
 
-    # Fetch organization data
-    org_domain = environment['googleOrganization']['displayName']
-    org = find_organization(org_domain)
-
-    environment['googleOrganization']['name'] = org.name
-    dci = org.directory_customer_id
-    environment['googleOrganization']['directoryCustomerId'] = dci
-    # Merge all data
     environment.update(config)
 
     return environment

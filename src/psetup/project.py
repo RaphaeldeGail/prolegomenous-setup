@@ -1,11 +1,17 @@
-"""Generate a root project idempotently.
+"""Generate a project idempotently.
 
-Can apply a specific configuration for a root project and create or update it
-in order to match the configuration.
+Can apply a specific configuration for a project and create or update it in
+order to match the configuration. The project services can then be enabled and
+a billing account can link to the project. The folder IAM policy can also be
+updated with this module.
 
 Typical usage example:
 
-  root_project = generate_root(setup)
+  my_project = project.apply('parent', 'my_id', 'my_displayName', {my_labels})
+
+  project.billing(my_project, 'billing_account')
+  project.services(my_project, [services])
+  project.control(my_project, {projectPolicy})
 """
 
 from google.cloud.resourcemanager_v3 import (
@@ -25,17 +31,15 @@ from google.cloud.billing_v1 import (
     UpdateProjectBillingInfoRequest
 )
 
-from google.longrunning.operations_pb2 import GetOperationRequest
-
-def _create_project(project):
-    """Create a project according to a declared project.
+def _create(project):
+    """Create a project according to a resource declaration.
 
     Args:
         project: google.cloud.resourcemanager_v3.types.Project, the declared
-            project.
+            resource.
 
     Returns:
-        google.cloud.resourcemanager_v3.types.Project, the project created by
+        google.cloud.resourcemanager_v3.types.Project, the project created from
             the operation.
     """
     client = ProjectsClient()
@@ -44,23 +48,23 @@ def _create_project(project):
     operation = client.create_project(request=request)
     response = operation.result()
 
-    print('project created... ', end='')
+    print('... project created... ')
 
     return response
 
-def _get_project(project):
-    """Get the existing project corresponding to the declared project.
+def _get(project):
+    """Get the existing project corresponding to the declared resource.
 
     Args:
-        project: google.cloud.resourcemanager_v3.types.Project, the declared
-            project.
+        project: google.cloud.resourcemanager_v3.types.Project, the delcared
+            resource.
 
     Returns:
         google.cloud.resourcemanager_v3.types.Project, the existing project if
-            it is unique.
+            it exists.
 
     Raises:
-        IndexError, if there is no project matching the declared project.
+        IndexError, matching projects amount to 0.
         TypeError, if the matching project is not unique.
     """
     # this is the query to find the matching projects
@@ -94,13 +98,13 @@ def _get_project(project):
 
     return project
 
-def control_access(project, policy):
+def control(project, policy):
     """Apply IAM policy to the project.
 
     Args:
         project: google.cloud.resourcemanager_v3.types.Project, the delcared
-            project.
-        policy: dict, list all `bindings` to apply to the project policy.
+            resource.
+        policy: google.iam.v1.policy_pb2.Policy, the policy to apply.
     """
     client = ProjectsClient()
     request = SetIamPolicyRequest(
@@ -112,33 +116,35 @@ def control_access(project, policy):
 
     return None
 
-def enable_services(project, services):
+def services(project, services_list):
     """Enable a list of services for the project.
 
     Args:
         project: google.cloud.resourcemanager_v3.types.Project, the delcared
-            project.
+            resource.
         services: list, a list of services to enable in the project.
     """
     client = ServiceUsageClient()
     request = BatchEnableServicesRequest(
         parent=project.name,
-        service_ids=services
+        service_ids=services_list
     )
 
-    operation = client.batch_enable_services(request=request)
+    operation = client.batch_services(request=request)
     # Waiting loop for the operation to end
     while not operation.done():
         print('... ', end='')
 
     return None
 
-def update_billing(project, name):
-    """Update a project billing info compared to a declared value.
+def billing(project, name):
+    """Update billing info for a project
 
     Args:
-        billing: google.cloud.resourcemanager_v3.types.ProjectBillingInfo, the
-            declared project billing info.
+        project: google.cloud.resourcemanager_v3.types.Project, the delcared
+            resource.
+        name: google.cloud.resourcemanager_v3.types.ProjectBillingInfo, the
+            declared billing info.
 
     Returns:
         google.cloud.resourcemanager_v3.types.ProjectBillingInfo, the project
@@ -156,73 +162,39 @@ def update_billing(project, name):
 
     return response
 
-def apply_project(parent, id, displayName, labels):
-    """Apply the declared project to the Google Cloud organization.
+def apply(parent, project_id, displayName, labels):
+    """Generate a project.
     
     Can either create, update or leave it as it is.
 
     Args:
-        declared_project: google.cloud.resourcemanager_v3.types.Project, the
-            project as declared.
+        parent: string, the name of the parent hosting the project.
+        project_id: string, a unique ID for the project.
+        displayName: string, the user-friendly name of the project.
+        labels: dict, a map of labels for the project, in a key-value form. 
 
     Returns:
-        google.cloud.resourcemanager_v3.types.Project, the project resulting
-            from the operation.
+        google.cloud.resourcemanager_v3.types.Project, the project generated
+            according to the declaration.
 
     Raises:
         TypeError, if the matching project is not unique.
     """
     declared_project = Project(
         parent=parent,
-        project_id=id,
+        project_id=project_id,
         display_name=displayName,
         labels=labels
     )
 
     try:
-        existing_project = _get_project(declared_project)
+        existing_project = _get(declared_project)
     except IndexError as e:
         if e.args[0] == 0:
-            existing_project = _create_project(declared_project)
+            existing_project = _create(declared_project)
     except TypeError as e:
         print(f'Found {len(e.args[0])} projects')
         print(f'List of projects: {str(e.args[0])}')
         raise e
 
     return existing_project
-
-def project_info(declared_project):
-    """Look for infos of the declared.
-
-    Args:
-        declared_project: google.cloud.resourcemanager_v3.types.Project, the
-            project as declared.
-
-    Returns:
-        google.cloud.resourcemanager_v3.types.Project, the matching project.
-
-    Raises:
-        ValueError, if the declared project is empty.
-        IndexError, if there is no project matching the declared project.
-        TypeError, if the matching project is not unique.
-    """
-    project_id = declared_project.project_id
-    display_name = declared_project.display_name
-    labels = declared_project.labels
-
-    if not (project_id and display_name and labels):
-        print('At least one of project_id, display_name or labels should be')
-        raise ValueError('Query is empty')
-
-    try:
-        project = _get_project(declared_project)
-    except IndexError as e:
-        if e.args[0] == 0:
-            print('Project not found')
-            raise e
-    except TypeError as e:
-        print(f'Found {len(e.args[0])} projects')
-        print(f'List of projects: {str(e.args[0])}')
-        raise e
-
-    return project

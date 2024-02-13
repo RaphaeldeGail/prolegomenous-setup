@@ -6,9 +6,9 @@ with this module.
 
 Typical usage example:
 
-  folder = folder.apply_folder(parent='folderParent', displayName='folderName')
+  my_folder = folder.apply(parent='folderParent', displayName='folderName')
 
-  folder.control_access(folder, policy={folderPolicy})
+  folder.control(my_folder, policy={folderPolicy})
 """
 
 from google.cloud.resourcemanager_v3 import (
@@ -89,7 +89,7 @@ def control(folder, policy):
     return None
 
 def apply(parent, displayName):
-    """Generate the workspaces folder.
+    """Generate a folder.
     
     Can either create, update or leave it as it is.
 

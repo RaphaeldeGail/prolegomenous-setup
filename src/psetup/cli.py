@@ -18,10 +18,10 @@ from .organization import (
 from .terraform import apply_project as apply_terraform
 from .terraform_variable import apply_variableset, apply_variable
 from .project import (
-    apply_project,
-    enable_services,
-    update_billing,
-    control_access as set_project_access
+    apply as apply_project,
+    services as enable_services,
+    billing as update_billing,
+    control as set_project_access
 )
 from .workload import apply_pool, apply_provider
 from .service_account import (
@@ -60,11 +60,11 @@ def init(setup):
     """
     org = setup['googleOrganization']['name']
 
-    print('generating organization IAM policy... ', end='')
+    print('generating organization IAM policy... ')
 
     set_org_access(org, iam.organization(setup))
 
-    print('IAM policy set... ', end='')
+    print('IAM policy set... ')
     print('DONE')
 
     return None
@@ -84,7 +84,7 @@ def role(setup):
 
     name = 'executiveRole'
 
-    print(f'generating {name.split("Role", maxsplit=1)[0]} role... ', end='')
+    print(f'generating {name.split("Role", maxsplit=1)[0]} role... ')
 
     executive_role = apply_role(parent=org, **(setup[name]))
 
@@ -92,7 +92,7 @@ def role(setup):
 
     name='builderRole'
 
-    print(f'generating {name.split("Role", maxsplit=1)[0]} role... ', end='')
+    print(f'generating {name.split("Role", maxsplit=1)[0]} role... ')
 
     apply_role(parent=org, **(setup[name]))
 
@@ -103,7 +103,7 @@ def role(setup):
 
     add_org_access(org, policy)
 
-    print('IAM policy set... ', end='')
+    print('IAM policy set... ')
     print('DONE')
 
     return None
@@ -124,7 +124,7 @@ def build(setup):
 
     uuid = str(randint(1,999999))
     project = setup['rootProject']
-    project['id'] = f'{project["displayName"]}-{uuid}'
+    project['project_id'] = f'{project["displayName"]}-{uuid}'
 
     services = project.pop('services')
 
@@ -142,7 +142,7 @@ def build(setup):
 
     ##### Terraform Cloud Project #####
 
-    print('generating Terraform Cloud project... ', end='')
+    print('generating Terraform Cloud project... ')
 
     tfc_id = apply_terraform(project=tfc_prj, organization=tfc_org)
 
@@ -150,26 +150,26 @@ def build(setup):
 
     ##### Root Project #####
 
-    print('generating root project... ', end='')
+    print('generating root project... ')
 
     root_project = apply_project(parent=org['name'], **project)
 
     update_billing(project=root_project, name=setup['billingAccount'])
 
-    print('billing updated... ', end='')
+    print('... billing updated... ')
 
     enable_services(root_project, services)
 
-    print('services enabled... ', end='')
+    print('... services enabled... ')
 
     set_project_access(root_project, iam.project(setup))
 
-    print('IAM policy set... ', end='')
+    print('... IAM policy set... ')
     print('DONE')
 
     ##### Workload Identity Pool #####
 
-    print('generating organization identities pool... ', end='')
+    print('generating organization identities pool... ')
 
     org_pool = apply_pool(project=root_project, **(setup['organizationPool']))
 
@@ -179,29 +179,29 @@ def build(setup):
 
     ##### Builder Service Account #####
 
-    print('generating builder service account... ', end='')
+    print('generating builder service account... ')
 
     builder_account = apply_account(project=root_project, **(account))
 
     set_account_access(builder_account, iam.account(setup, org_pool, tfc_id.id))
 
-    print('IAM policy set... ', end='')
+    print('IAM policy set... ')
     print('DONE')
 
     ##### Workspace Tag #####
 
-    print('generating workspace tag... ', end='')
+    print('generating workspace tag... ')
 
     workspace_tag_key = apply_key(parent=org['name'], **(setup['workspaceTag']))
 
     set_tag_access(workspace_tag_key, iam.workspace_tag(builder_account))
 
-    print('IAM policy set... ', end='')
+    print('IAM policy set... ')
     print('DONE')
 
     ##### Workspace Folder #####
 
-    print('generating workspace folder... ', end='')
+    print('generating workspace folder... ')
 
     workspace_folder = apply_folder(parent=org['name'], **(folder))
 
@@ -210,12 +210,12 @@ def build(setup):
         iam.workspace_folder(setup, builder_account)
     )
 
-    print('IAM policy set... ', end='')
+    print('IAM policy set... ')
     print('DONE')
 
     ##### Terraform Variable Sets #####
 
-    print('generating variable set... ', end='')
+    print('generating variable set... ')
 
     creds_varset = apply_variableset(
         org_id=tfc_org,

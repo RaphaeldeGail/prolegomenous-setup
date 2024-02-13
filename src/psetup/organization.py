@@ -5,9 +5,9 @@ or extended.
 
 Typical usage example:
 
-  org = organization.find('organizationName')
-  organization.control(Organization, OrganizationPolicy)
-  organization.add_control(Organization, OrganizationExtraPolicy)
+  my_org = organization.find('organizationName')
+  organization.control(my_org, {organizationPolicy})
+  organization.add_control(my_org, {organizationExtraPolicy})
 """
 
 from google.cloud.resourcemanager_v3 import OrganizationsClient, SearchOrganizationsRequest

@@ -10,7 +10,7 @@ from random import randint
 from google.iam.v1.policy_pb2 import Policy
 # local imports
 from .config import from_yaml
-from .role import apply_role
+from .role import apply as apply_role
 from .organization import (
     control as set_org_access,
     add_control as add_org_access

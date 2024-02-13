@@ -88,6 +88,28 @@ class Role:
         except KeyError:
             pass
 
+    def diff(self, update):
+        """
+        Show the differences between the role and a declared one.
+
+        Args:
+            update: psetup.role.Role, the declared resource.
+
+        Returns:
+            list, the list of attributes to update to match existing and
+                declared.
+        """
+        mask = []
+
+        for attr in update.__dict__.keys():
+            if isinstance(getattr(update, attr), list):
+                if set(getattr(update, attr)) != set(getattr(self, attr)):
+                    mask.append(attr)
+            elif getattr(update, attr) != getattr(self, attr):
+                mask.append(attr)
+
+        return mask
+
     @property
     def name(self):
         """Returns the fully qualified name of the instance.
@@ -98,15 +120,14 @@ class Role:
         fmt = f'{self.parent}/roles/{self.role_id}'
         return fmt
 
-def _create_role(role):
-    """
-    Create a role according to a declared one.
+def _create(role):
+    """Create a role according to a resource declaration.
 
     Args:
-        role: Role, the delcared service account.
+        role: psetup.role.Role, the declared resource.
 
     Returns:
-        Role, the role as a result from the operation.
+        psetup.role.Role, the role created from the operation.
     """
     # build the create request body
     body = {
@@ -134,22 +155,21 @@ def _create_role(role):
 
     existing_role.update_from_dict(result)
 
-    print('role created... ', end='')
+    print('... role created... ')
 
     return existing_role
 
-def _update_role(declared_role, existing_role):
-    """
-    Update an existing service account compared to a declared one.
+def _update(declared_role, existing_role):
+    """Update a role according to a resource declaration.
 
     Args:
-        declared_sa: ServiceAccount, the declared service account.
-        existing_sa: ServiceAccount, the existing service account.
+        declared_role: psetup.role.Role, the declared resource.
+        existing_role: psetup.role.Role, the existing resource.
 
     Returns:
-        ServiceAccount, the service account updated from the operation.
+        psetup.role.Role, the role updated by the operation.
     """
-    mask = _diff(declared=declared_role, existing=existing_role)
+    mask = existing_role.diff(declared_role)
 
     # If there is non differences, return the original existing account.
     if not mask:
@@ -180,46 +200,21 @@ def _update_role(declared_role, existing_role):
 
     existing_role.update_from_dict(result)
 
-    print('role updated... ', end='')
+    print('... role updated... ')
 
     return existing_role
 
-def _diff(declared, existing):
-    """
-    Show the differences between a declared and an existing service account.
+def _get(role):
+    """Get a role in a Google organization.
 
     Args:
-        declared: ServiceAccount, the declared service account.
-        existing: ServiceAccount, the existing service account.
+        role: psetup.role.Role, the declared resource.
 
     Returns:
-        list, the list of attributes to update to match existing and declared.
-    """
-    mask = []
-
-    for attr in existing.__dict__.keys():
-        if isinstance(getattr(existing, attr), list):
-            if set(getattr(existing, attr)) != set(getattr(declared, attr)):
-                mask.append(attr)
-        elif getattr(existing, attr) != getattr(declared, attr):
-            mask.append(attr)
-
-    return mask
-
-def _get_role(role):
-    """
-    Get the existing service account in project corresponding to the
-        declared service account.
-
-    Args:
-        sa: ServiceAccount, the delcared service account.
-
-    Returns:
-        ServiceAccount, the existing service account.
+        psetup.role.Role, the existing role.
 
     Raises:
-        ValueError, if there is no service account matching the
-            definition.
+        IndexError, if there is no role matching the definition.
     """
     existing = None
 
@@ -253,7 +248,7 @@ def _get_role(role):
 
     return existing_role
 
-def apply_role(
+def apply(
     name,
     parent,
     stage,
@@ -261,18 +256,21 @@ def apply_role(
     title=None,
     includedPermissions=None
     ):
-    """Generate the builder servie account for the root structure.
-    
+    """Generate a role.
+
     Can either create, update or leave it as it is.
 
     Args:
-        setup: dict, the configuration used to build the root structure.
-        parent: string, the ID of the project hosting the service account.
-        pool_id: string, the name of the workload identity pool that can
-            delegate access to the service account.
+        name: string, the ID for the role, which becomes the final component of
+            the resource name.
+        parent: string, the name of the organization hosting the role.
+        stage: string, a stage of release for the role.
+        description: string, a description of the role.
+        title: string, a user-friendly name for the role.
+        includedPermissions: list, a list of IAM permissions bound to the role.
 
     Returns:
-        ServiceAccount, the generated service account.
+        psetup.role.Role, the role generated according to the declaration.
     """
     declared_role = Role(
         role_id=name,
@@ -284,11 +282,11 @@ def apply_role(
     )
 
     try:
-        role= _get_role(declared_role)
+        role= _get(declared_role)
     except IndexError as e:
         if e.args[0] == 0:
-            role = _create_role(declared_role)
+            role = _create(declared_role)
 
-    role = _update_role(declared_role, role)
+    role = _update(declared_role, role)
 
     return role

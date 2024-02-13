@@ -64,7 +64,6 @@ def init(setup):
 
     set_org_access(org, iam.organization(setup))
 
-    print('IAM policy set... ')
     print('DONE')
 
     return None
@@ -98,12 +97,13 @@ def role(setup):
 
     print('DONE')
 
+    print('extending organization IAM policy... ')
+
     policy = Policy()
     policy.bindings.add(role=executive_role.name, members=[ member ])
 
     add_org_access(org, policy)
 
-    print('IAM policy set... ')
     print('DONE')
 
     return None
@@ -185,7 +185,7 @@ def build(setup):
 
     set_account_access(builder_account, iam.account(setup, org_pool, tfc_id.id))
 
-    print('IAM policy set... ')
+    print('... IAM policy set... ')
     print('DONE')
 
     ##### Workspace Tag #####
@@ -196,7 +196,7 @@ def build(setup):
 
     set_tag_access(workspace_tag_key, iam.workspace_tag(builder_account))
 
-    print('IAM policy set... ')
+    print('... IAM policy set... ')
     print('DONE')
 
     ##### Workspace Folder #####
@@ -210,7 +210,7 @@ def build(setup):
         iam.workspace_folder(setup, builder_account)
     )
 
-    print('IAM policy set... ')
+    print('... IAM policy set... ')
     print('DONE')
 
     ##### Terraform Variable Sets #####

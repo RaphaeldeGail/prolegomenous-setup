@@ -1,11 +1,17 @@
 """Generate an organization role idempotently.
 
-Can apply a specific configuration for a role and create or update it in order
-to match the configuration.
+Can apply a specific configuration for a role and create or update it in
+order to match the configuration.
 
 Typical usage example:
 
-  role = generate_role(setup)
+  my_role = role.apply(
+    name='myRoleName',
+    parent='parent',
+    stage='GA',
+    description='',
+    title='displayName',
+    includedPermissions=[permissions])
 """
 
 from googleapiclient.discovery import build
@@ -14,12 +20,13 @@ class Role:
     """A class to represent a role in a Google Cloud organization.
 
     Attributes:
-        account_id: string, the ID for the service account, which becomes the
-            final component of the resource name.
-        description: string, a description of the service account.
-        display_name: string, a user-friendly name for the service account.
-        project: string, the ID of the project to create this account in.
-
+        role_id: string, the ID for the role, which becomes the final component
+            of the resource name.
+        parent: string, the name of the organization hosting the role.
+        description: string, a description of the role.
+        title: string, a user-friendly name for the role.
+        stage: string, a stage of release for the role.
+        includedPermissions: list, a list of IAM permissions bound to the role.
     """
 
     def __init__(self,
@@ -33,11 +40,14 @@ class Role:
         """Initializes the instance based on attributes.
 
         Args:
-            account_id: string, the ID for the service account, which becomes
-                the final component of the resource name.
-            project: string, the ID of the project to create this account in.
-            display_name: string, a user-friendly name for the service account.
-            description: string, a description of the service account.
+            parent: string, the name of the organization hosting the role.
+            includedPermissions: list, a list of IAM permissions bound to the
+                role.
+            stage: string, a stage of release for the role.
+            title: string, a user-friendly name for the role.
+            role_id: string, the ID for the role, which becomes the final component
+            of the resource name.
+            description: string, a description of the role.
         """
         self.role_id = role_id
         self.parent = parent
@@ -81,10 +91,12 @@ class Role:
     @property
     def name(self):
         """Returns the fully qualified name of the instance.
+
+        Returns:
+            string, the fully qualified name of the instance.
         """
         fmt = f'{self.parent}/roles/{self.role_id}'
         return fmt
-
 
 def _create_role(role):
     """

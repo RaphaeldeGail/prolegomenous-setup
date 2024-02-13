@@ -16,7 +16,7 @@ from site import USER_BASE
 from os.path import isfile
 from os import getenv
 
-from .organization import find_organization
+from .organization import find as find_organization
 
 def _override(base, update):
     """Override a dictionary entry, keys by keys subkeys by subkeys.

@@ -12,8 +12,8 @@ from google.iam.v1.policy_pb2 import Policy
 from .config import from_yaml
 from .role import apply_role
 from .organization import (
-    control_access as set_org_access,
-    add_access as add_org_access
+    control as set_org_access,
+    add_control as add_org_access
 )
 from .terraform import apply_project as apply_terraform
 from .terraform_variable import apply_variableset, apply_variable

@@ -1,30 +1,31 @@
-"""Generate a root project idempotently.
+"""Manage a Google organization idempotently.
 
-Can apply a specific configuration for a root project and create or update it
-in order to match the configuration.
+Can find a particular Google organization. The IAM policy can also be updated
+or extended.
 
 Typical usage example:
 
-  root_project = generate_root(setup)
+  org = organization.find('organizationName')
+  organization.control(Organization, OrganizationPolicy)
+  organization.add_control(Organization, OrganizationExtraPolicy)
 """
 
 from google.cloud.resourcemanager_v3 import OrganizationsClient, SearchOrganizationsRequest
 from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest, GetIamPolicyRequest
 
-def find_organization(display_name):
-    """Get the existing project corresponding to the declared project.
+def find(display_name):
+    """Get the existing organization corresponding to the declared resource.
 
     Args:
-        project: google.cloud.resourcemanager_v3.types.Project, the declared
-            project.
+        display_name: string, the organization display name.
 
     Returns:
-        google.cloud.resourcemanager_v3.types.Project, the existing project if
-            it is unique.
+        google.cloud.resourcemanager_v3.types.Organization, the existing
+            organization.
 
     Raises:
-        IndexError, if there is no project matching the declared project.
-        TypeError, if the matching project is not unique.
+        IndexError, if there is no organization matching the declared resource.
+        TypeError, if the matching organization is not unique.
     """
     # this is the query to find the matching projects
     query = f'domain:{display_name}'
@@ -51,13 +52,13 @@ def find_organization(display_name):
 
     return org
 
-def control_access(organization, policy):
-    """Apply IAM policy to the project.
+def control(organization, policy):
+    """Apply IAM policy to the organization.
 
     Args:
-        project: google.cloud.resourcemanager_v3.types.Project, the delcared
-            project.
-        policy: dict, list all `bindings` to apply to the project policy.
+        organization: google.cloud.resourcemanager_v3.types.Organization, the
+            delcared organization.
+        policy: google.iam.v1.policy_pb2.Policy, the policy to apply.
     """
     client = OrganizationsClient()
     request = SetIamPolicyRequest(
@@ -69,13 +70,13 @@ def control_access(organization, policy):
 
     return None
 
-def add_access(organization, policy):
-    """Apply IAM policy to the project.
+def add_control(organization, policy):
+    """Add an extra IAM policy to the organization.
 
     Args:
-        project: google.cloud.resourcemanager_v3.types.Project, the delcared
-            project.
-        policy: dict, list all `bindings` to apply to the project policy.
+        organization: google.cloud.resourcemanager_v3.types.Organization, the
+            delcared organization.
+        policy: google.iam.v1.policy_pb2.Policy, the extra policy to add.
     """
     client = OrganizationsClient()
     request = GetIamPolicyRequest(

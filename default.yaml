@@ -56,7 +56,7 @@ terraformProvider:
     attribute.terraform_workspace_name: 'assertion.terraform_workspace_name'
     google.subject: 'assertion.sub'
 builderAccount:
-  id: 'builder'
+  name: 'builder'
   description: 'Service account for building workspaces.'
   displayName: 'Workspace Builder Service Account'
 workspaceFolder:

@@ -89,8 +89,7 @@ class Role:
             pass
 
     def diff(self, update):
-        """
-        Show the differences between the role and a declared one.
+        """Show the differences between the role and a declared one.
 
         Args:
             update: psetup.role.Role, the declared resource.

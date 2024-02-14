@@ -1,24 +1,30 @@
-"""Generate a builder service account idempotently.
+"""Generate a service account idempotently.
 
 Can apply a specific configuration for a service account and create or update
 it in order to match the configuration.
 
 Typical usage example:
 
-  service_account = generate_service_account(setup, parent, poolId)
+    my_sa = service_account.apply(
+        project='project',
+        id=''myServiceAccountName',
+        displayName='myDisplayName',
+        description='')
+
+    service_account.control(my_sa, {ServiceAccountPolicy})
 """
 
 from googleapiclient.discovery import build
 
 class ServiceAccount:
-    """A class to represent a service account in Google Cloud project.
+    """A class to represent a service account in a Google Cloud project.
 
     Attributes:
         account_id: string, the ID for the service account, which becomes the
             final component of the resource name.
         description: string, a description of the service account.
         display_name: string, a user-friendly name for the service account.
-        project: string, the ID of the project to create this account in.
+        project: string, the ID of the project hosting the account.
 
     """
 
@@ -33,9 +39,9 @@ class ServiceAccount:
         Args:
             account_id: string, the ID for the service account, which becomes
                 the final component of the resource name.
-            project: string, the ID of the project to create this account in.
-            display_name: string, a user-friendly name for the service account.
             description: string, a description of the service account.
+            display_name: string, a user-friendly name for the service account.
+            project: string, the ID of the project hosting the account.
         """
         self.account_id = account_id
         self.project = project
@@ -68,9 +74,31 @@ class ServiceAccount:
         except KeyError:
             pass
 
+    def diff(self, update):
+        """Show the differences between the service account and a declared one.
+
+        Args:
+            update: psetup.service_account.ServiceAccount, the declared
+                resource.
+
+        Returns:
+            list, the list of attributes to update to match existing and
+                declared.
+        """
+        mask = []
+
+        for attr in update.__dict__.keys():
+            if getattr(update, attr) != getattr(self, attr):
+                mask.append(attr)
+
+        return mask
+
     @property
     def name(self):
         """Returns the fully qualified name of the instance.
+
+        Returns:
+            string, the fully qualified name of the instance.
         """
         project_id = f'projects/{self.project}'
         sa = f'{self.account_id}@{self.project}.iam.gserviceaccount.com'
@@ -79,17 +107,20 @@ class ServiceAccount:
 
     @property
     def email(self):
-        """Returns the fully qualified email address of the instance.
+        """Returns the email address of the instance.
+
+        Returns:
+            string, the email of the instance.
         """
         fmt = self.name.split('/serviceAccounts/')[1]
         return fmt
 
-def _create_sa(sa):
+def _create(sa):
     """
-    Create a service account according to a declared one.
+    Create a service account according to a resource declaration.
 
     Args:
-        sa: ServiceAccount, the delcared service account.
+        sa: ServiceAccount, the declared resource.
 
     Returns:
         ServiceAccount, the service account created from the operation.
@@ -118,22 +149,22 @@ def _create_sa(sa):
 
     existing_sa.update_from_dict(result)
 
-    print('service account created... ', end='')
+    print('... service account created... ', end='')
 
     return existing_sa
 
-def _update_sa(declared_sa, existing_sa):
+def _update(declared_sa, existing_sa):
     """
-    Update an existing service account compared to a declared one.
+    Update a service account according to a resource declaration.
 
     Args:
-        declared_sa: ServiceAccount, the declared service account.
-        existing_sa: ServiceAccount, the existing service account.
+        declared_sa: ServiceAccount, the declared resource.
+        existing_sa: ServiceAccount, the existing resource.
 
     Returns:
-        ServiceAccount, the service account updated from the operation.
+        ServiceAccount, the service account updated by the operation.
     """
-    mask = _diff(declared=declared_sa, existing=existing_sa)
+    mask = existing_sa.diff(declared_sa)
     # build the update request body
     body = {
         'serviceAccount': {
@@ -162,43 +193,21 @@ def _update_sa(declared_sa, existing_sa):
 
     existing_sa.update_from_dict(result)
 
-    print('service account updated... ', end='')
+    print('... service account updated... ', end='')
 
     return existing_sa
 
-def _diff(declared, existing):
-    """
-    Show the differences between a declared and an existing service account.
+def _get(sa):
+    """Get a service account in a Google Cloud project.
 
     Args:
-        declared: ServiceAccount, the declared service account.
-        existing: ServiceAccount, the existing service account.
-
-    Returns:
-        list, the list of attributes to update to match existing and declared.
-    """
-    mask = []
-
-    for attr in existing.__dict__.keys():
-        if getattr(existing, attr) != getattr(declared, attr):
-            mask.append(attr)
-
-    return mask
-
-def _get_sa(sa):
-    """
-    Get the existing service account in project corresponding to the
-        declared service account.
-
-    Args:
-        sa: ServiceAccount, the delcared service account.
+        sa: ServiceAccount, the delcared resource.
 
     Returns:
         ServiceAccount, the existing service account.
 
     Raises:
-        ValueError, if there is no service account matching the
-            definition.
+        IndexError, if there is no service account matching the definition.
     """
     parent = f'projects/{sa.project}'
     existing = None
@@ -227,17 +236,25 @@ def _get_sa(sa):
 
     return existing_sa
 
-def control_access(service_account, policy):
-    """
-    Apply IAM policy to the tag key.
+def control(service_account, policy):
+    """Apply IAM policy to the service account.
 
     Args:
-        sa: ServiceAccount, the delcared service account.
-        policy: dict, list all `bindings` to apply to the account policy.
+        sa: ServiceAccount, the delcared resource.
+        policy: google.iam.v1.policy_pb2.Policy, the policy to apply.
     """
     # Match the body to the definition of service account setIamPolicy method.
     # members is of type RepeatedScalerContainer and must be set to a list.
-    body = {'policy': {'bindings': [{'role': binding.role, 'members': list(binding.members)} for binding in policy.bindings]}}
+    body = {
+        'policy': {
+            'bindings': [
+                {
+                    'role': binding.role,
+                    'members': list(binding.members)
+                } for binding in policy.bindings
+            ]
+        }
+    }
 
     with build('iam', 'v1').projects().serviceAccounts() as api:
         request = api.setIamPolicy(resource=service_account.name, body=body)
@@ -245,33 +262,35 @@ def control_access(service_account, policy):
 
     return None
 
-def apply(project, id, displayName, description):
-    """Generate the builder servie account for the root structure.
+def apply(project, name, displayName, description):
+    """Generate a service account.
     
     Can either create, update or leave it as it is.
 
     Args:
-        setup: dict, the configuration used to build the root structure.
-        parent: string, the ID of the project hosting the service account.
-        pool_id: string, the name of the workload identity pool that can
-            delegate access to the service account.
+        name: string, the ID for the service account, which becomes the
+            final component of the resource name.
+        description: string, a description of the service account.
+        displayName: string, a user-friendly name for the service account.
+        project: string, the ID of the project hosting the account.
 
     Returns:
-        ServiceAccount, the generated service account.
+        ServiceAccount, the service account generated according to the
+            declaration.
     """
     declared_service_account = ServiceAccount(
         project=project.project_id,
-        account_id=id,
+        account_id=name,
         display_name=displayName,
         description=description
     )
 
     try:
-        service_account = _get_sa(declared_service_account)
+        service_account = _get(declared_service_account)
     except IndexError as e:
         if e.args[0] == 0:
-            service_account = _create_sa(declared_service_account)
+            service_account = _create(declared_service_account)
 
-    service_account = _update_sa(declared_service_account, service_account)
+    service_account = _update(declared_service_account, service_account)
 
     return service_account

@@ -1,12 +1,14 @@
-"""Generate a tag key and value idempotently.
+"""Generate a tag key idempotently.
 
-Can apply a specific configuration for a tag and create or update it in
-order to match the configuration.
+Can apply a specific configuration for a tag key and create or update it in
+order to match the configuration. The tag key IAM policy can also be updated
+with this module.
 
 Typical usage example:
 
-  generate_root_tag(setup, project)
-  generate_workspace_tag(setup, builder_email)
+    my_key = tag.apply('parent', 'myName', 'description')
+
+    tag.control(my_key, {keyPolicy})
 """
 
 from google.cloud.resourcemanager_v3 import (
@@ -14,24 +16,18 @@ from google.cloud.resourcemanager_v3 import (
     TagKeysClient,
     CreateTagKeyRequest,
     UpdateTagKeyRequest,
-    ListTagKeysRequest,
-    TagValuesClient,
-    CreateTagValueRequest,
-    UpdateTagValueRequest,
-    ListTagValuesRequest,
-    TagBindingsClient,
-    ListTagBindingsRequest,
-    CreateTagBindingRequest
+    ListTagKeysRequest
 )
 from google.iam.v1.iam_policy_pb2 import SetIamPolicyRequest
 from google.protobuf.field_mask_pb2 import FieldMask
 
-def _create_key(key):
+def _create(key):
     """
-    Create a tag key according to a declared key.
+    Create a tag key according to to a resource declaration.
 
     Args:
-        key: google.cloud.resourcemanager_v3.types.TagKey, the delcared tag key.
+        key: google.cloud.resourcemanager_v3.types.TagKey, the delcared
+            resource.
 
     Returns:
         google.cloud.resourcemanager_v3.types.TagKey, the tag key created from
@@ -43,22 +39,22 @@ def _create_key(key):
     operation = client.create_tag_key(request=request)
     response = operation.result()
 
-    print('key created... ', end='')
+    print('... key created... ')
 
     return response
 
-def _update_key(declared_key, existing_key):
+def _update(declared_key, existing_key):
     """
-    Update an existing tag key compared to a declared key.
+    Update a tag key according to a resource declaration.
 
     Args:
         declared_key: google.cloud.resourcemanager_v3.types.TagKey, the
-            declared tag key.
+            declared resource.
         existing_key: google.cloud.resourcemanager_v3.types.TagKey, the
-            existing tag key.
+            existing resource.
 
     Returns:
-        google.cloud.resourcemanager_v3.types.TagKey, the tag key updated from
+        google.cloud.resourcemanager_v3.types.TagKey, the tag key updated by
             the operation.
     """
     mask = _diff(declared=declared_key, existing=existing_key)
@@ -77,23 +73,22 @@ def _update_key(declared_key, existing_key):
     operation = client.update_tag_key(request=request)
     response = operation.result()
 
-    print('key updated... ', end='')
+    print('... key updated... ')
 
     return response
 
-def _get_key(key):
-    """
-    Get the existing tag in Google organization corresponding to the declared
-        tag key.
+def _get(key):
+    """Get the existing tag key corresponding to the declared resource.
 
     Args:
-        key: google.cloud.resourcemanager_v3.types.TagKey, the delcared tag key.
+        key: google.cloud.resourcemanager_v3.types.TagKey, the delcared
+            resource.
 
     Returns:
         google.cloud.resourcemanager_v3.types.TagKey, the existing tag key.
 
     Raises:
-        IndexError, if there is no tag key matching the definition.
+        IndexError, matching tag key amount to 0.
     """
     parent = key.parent
     existing = None
@@ -114,15 +109,13 @@ def _get_key(key):
 
 def _diff(declared, existing):
     """
-    Show the differences between a declared and an existing tag key or value.
+    Show the differences between a tag key and a declared one.
 
     Args:
-        declared: [google.cloud.resourcemanager_v3.types.TagKey,
-            google.cloud.resourcemanager_v3.types.TagValue] the delcared tag
-            key or value.
-        existing: [google.cloud.resourcemanager_v3.types.TagKey,
-            google.cloud.resourcemanager_v3.types.TagValue] the existing tag
-            key or value.
+        declared: google.cloud.resourcemanager_v3.types.TagKey, the delcared
+            resource.
+        existing: google.cloud.resourcemanager_v3.types.TagKey, the existing
+            resource.
 
     Returns:
         list, the list of attributes to update to match existing and declared.
@@ -132,156 +125,14 @@ def _diff(declared, existing):
 
     return ['description']
 
-def _create_value(value):
-    """
-    Create a tag value according to a declared value.
-
-    Args:
-        value: google.cloud.resourcemanager_v3.types.TagValue, the delcared tag
-            value.
-
-    Returns:
-        google.cloud.resourcemanager_v3.types.TagValue, the tag value created
-            from the operation.
-    """
-    client = TagValuesClient()
-    request = CreateTagValueRequest(tag_value=value)
-
-    operation = client.create_tag_value(request=request)
-    response = operation.result()
-
-    print('value created... ', end='')
-
-    return response
-
-def _update_value(declared_value, existing_value):
-    """
-    Update an existing tag value compared to a declared value.
-
-    Args:
-        declared_value: google.cloud.resourcemanager_v3.types.TagValue, the
-            declared tag value.
-        existing_value: google.cloud.resourcemanager_v3.types.TagValue, the
-            existing tag value.
-
-    Returns:
-        google.cloud.resourcemanager_v3.types.TagValue, the tag value updated
-            from the operation.
-    """
-    mask = _diff(declared=declared_value, existing=existing_value)
-
-    # If there is non differences, return the original existing value.
-    if not mask:
-        return existing_value
-
-    client = TagValuesClient()
-    update_mask = FieldMask(paths=mask)
-    request = UpdateTagValueRequest(
-        tag_value=declared_value,
-        update_mask=update_mask
-    )
-
-    operation = client.update_tag_value(request=request)
-    response = operation.result()
-
-    print('value updated... ', end='')
-
-    return response
-
-def _get_value(value):
-    """
-    Get the existing tag value in Google organization corresponding to the
-        definition.
-
-    Args:
-        value: google.cloud.resourcemanager_v3.types.TagValue, the delcared tag
-            value.
-
-    Returns:
-        google.cloud.resourcemanager_v3.types.TagValue, the existing tag value.
-
-    Raises:
-        IndexError, if there is no tag value matching the definition.
-    """
-    parent = value.parent
-    existing = None
-
-    client = TagValuesClient()
-    request = ListTagValuesRequest(parent=parent)
-
-    page_result = client.list_tag_values(request=request)
-
-    for result in page_result:
-        if result.short_name == value.short_name:
-            existing = result
-
-    if existing is None:
-        raise IndexError(0)
-
-    return existing
-
-def _get_binding(binding):
-    """
-    Get the existing tag binding in project corresponding to the definition.
-
-    Args:
-        binding: google.cloud.resourcemanager_v3.types.TagBinding, the delcared
-            tag binding.
-
-    Returns:
-        binding: google.cloud.resourcemanager_v3.types.TagBinding, the existing
-            tag binding.
-
-    Raises:
-        IndexError, if there is no tag binding matching the definition.
-    """
-    existing = None
-
-    client = TagBindingsClient()
-    request = ListTagBindingsRequest(
-        parent=binding.parent
-    )
-
-    page_result = client.list_tag_bindings(request=request)
-
-    for response in page_result:
-        if binding.tag_value == response.tag_value:
-            existing = response
-
-    if existing is None:
-        raise IndexError(0)
-
-    return existing
-
-def _create_binding(binding):
-    """
-    Bind the tag value to a project.
-
-    Args:
-        binding: google.cloud.resourcemanager_v3.types.TagBinding, the delcared
-            tag binding.
-
-    Returns:
-        google.cloud.resourcemanager_v3.types.TagBinding, the tag binding
-            created.
-    """
-    client = TagBindingsClient()
-    request = CreateTagBindingRequest(tag_binding=binding)
-
-    operation = client.create_tag_binding(request=request)
-    response = operation.result()
-
-    print('binding created... ', end='')
-
-    return response
-
-def control_access(key, policy):
+def control(key, policy):
     """
     Apply IAM policy to the tag key.
 
     Args:
-        key: google.cloud.resourcemanager_v3.types.TagKey, the delcared tag key.
-        policy: dict, list all `bindings` to apply to the tag policy.
+        key: google.cloud.resourcemanager_v3.types.TagKey, the delcared
+            resource.
+        policy: google.iam.v1.policy_pb2.Policy, the policy to apply.
     """
     client = TagKeysClient()
     request = SetIamPolicyRequest(
@@ -293,17 +144,19 @@ def control_access(key, policy):
 
     return None
 
-def apply_key(parent, shortName, description):
-    """
-    Generate the root tag key and value. Can either create, update or leave it
-        as it is. The tag value is also updated with a binding.
+def apply(parent, shortName, description):
+    """Generate a tag key.
+
+    Can either create, update or leave it as it is.
 
     Args:
-        setup: dict, the configuration used to build the root structure.
-        project: string, the name of the project to bind the tag value with.
+        parent: string, the name of the organization hosting the tag key.
+        shortName: string, a user-friendly name for the tag key.
+        description: string, a description of the yag key.
 
     Returns:
-        google.cloud.resourcemanager_v3.types.TagValue, the generated tag value.
+        google.cloud.resourcemanager_v3.types.TagKey, the tag key generated
+            according to the declaration.
     """
     declared_key = TagKey(
         parent=parent,
@@ -312,53 +165,11 @@ def apply_key(parent, shortName, description):
     )
 
     try:
-        key = _get_key(declared_key)
+        key = _get(declared_key)
     except IndexError as e:
         if e.args[0] == 0:
-            key = _create_key(declared_key)
+            key = _create(declared_key)
 
-    key = _update_key(declared_key, key)
+    key = _update(declared_key, key)
 
     return key
-
-def apply_value(declared_value):
-    """
-    Generate the root tag key and value. Can either create, update or leave it
-        as it is. The tag value is also updated with a binding.
-
-    Args:
-        setup: dict, the configuration used to build the root structure.
-        project: string, the name of the project to bind the tag value with.
-
-    Returns:
-        google.cloud.resourcemanager_v3.types.TagValue, the generated tag value.
-    """
-    try:
-        value = _get_value(declared_value)
-    except IndexError as e:
-        if e.args[0] == 0:
-            value = _create_value(value)
-
-    value = _update_value(declared_value, value)
-
-    return value
-
-def apply_binding(declared_binding):
-    """
-    Generate the root tag key and value. Can either create, update or leave it
-        as it is. The tag value is also updated with a binding.
-
-    Args:
-        setup: dict, the configuration used to build the root structure.
-        project: string, the name of the project to bind the tag value with.
-
-    Returns:
-        google.cloud.resourcemanager_v3.types.TagValue, the generated tag value.
-    """
-    try:
-        binding = _get_binding(declared_binding)
-    except IndexError as e:
-        if e.args[0] == 0:
-            binding = _create_binding(declared_binding)
-
-    return binding

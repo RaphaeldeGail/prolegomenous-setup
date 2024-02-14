@@ -84,18 +84,14 @@ class Variable:
             pass
 
     def diff(self, other):
-        """
-        Show the differences between a declared and an existing workload identity
-            pool or provider.
+        """Show the differences between the variable and a declared one.
 
         Args:
-            declared: [WorkloadIdentityPool, WorkloadIdentityProvider], the
-                delcared workload identity pool or provider.
-            existing: [WorkloadIdentityPool, WorkloadIdentityProvider], the
-                existing workload identity pool or provider.
+            other: Variable, the declared resource.
 
         Returns:
-            list, the list of attributes to update to match existing and declared.
+            list, the list of attributes to update to match existing and
+                declared.
         """
         mask = []
 
@@ -106,8 +102,33 @@ class Variable:
         return mask
 
 class VariableSet:
+    """A class to represent a variable set in a Terraform Cloud organization.
 
-    def __init__(self, id=None, name=None, description=None, project=None, glob=False):
+    Attributes:
+        id: string, the ID for the variable set, which becomes the final
+            component of the resource name.
+        attributes: dict, a map for the definition of the variable set.
+        projects: list, a list of project linked to the variable set.
+    """
+
+    def __init__(self,
+            id=None,
+            name=None,
+            description=None,
+            project=None,
+            glob=False
+        ):
+        """Initializes the instance based on attributes.
+
+        Args:
+            id: string, the ID for the variable set, which becomes the final
+                component of the resource name.
+            name: string, the name of the variable set.
+            project: string, the ID of the project to link to the variable set.
+            glob: bool, whether the variable set should be applied globally, or
+                only specifically on certain projects.
+            description: string, a description of the variable set.
+        """
         self.id = id
         self.attributes = {
             "name": name,
@@ -146,18 +167,14 @@ class VariableSet:
             pass
 
     def diff(self, other):
-        """
-        Show the differences between a declared and an existing workload identity
-            pool or provider.
+        """Show the differences between the variable set and a declared one.
 
         Args:
-            declared: [WorkloadIdentityPool, WorkloadIdentityProvider], the
-                delcared workload identity pool or provider.
-            existing: [WorkloadIdentityPool, WorkloadIdentityProvider], the
-                existing workload identity pool or provider.
+            other: VariableSet, the declared resource.
 
         Returns:
-            list, the list of attributes to update to match existing and declared.
+            list, the list of attributes to update to match existing and
+                declared.
         """
         mask = []
 

@@ -1,16 +1,36 @@
+"""Generate a terraform variable set idempotently.
+
+Can apply a specific configuration for a variable set or variable and create or
+update it in order to match the configuration.
+
+Typical usage example:
+
+  my_varset = terraform_variable.apply(
+    org_id='myOrg',
+    name='nyName',
+    description='',
+    project='projectId')
+
+  my_var = terraform_variable.apply_variable(
+    org_id='myOrg',
+    varset_id=my_varset.id,
+    key='myKey',
+    value='myValue',
+    category='env',
+    description=''
+  )
+"""
+
 from os import getenv
 from terrasnek.api import TFC
 
 class Variable:
-    """A class to represent a service account in Google Cloud project.
+    """A class to represent a variable in a Terraform Cloud organization.
 
     Attributes:
-        account_id: string, the ID for the service account, which becomes the
-            final component of the resource name.
-        description: string, a description of the service account.
-        display_name: string, a user-friendly name for the service account.
-        project: string, the ID of the project to create this account in.
-
+        id: string, the ID for the variable, which becomes the final component
+            of the resource name.
+        attributes: dict, a map for the definition of the variable.
     """
 
     def __init__(self,
@@ -25,11 +45,17 @@ class Variable:
         """Initializes the instance based on attributes.
 
         Args:
-            account_id: string, the ID for the service account, which becomes
-                the final component of the resource name.
-            project: string, the ID of the project to create this account in.
-            display_name: string, a user-friendly name for the service account.
-            description: string, a description of the service account.
+            id: string, the ID for the variable, which becomes the final
+                component of the resource name.
+            key: string, the name of the variable.
+            value: string, the value of the variable.
+            sensitive: bool, whether the value is sensitive. If true, variable
+                is not visible in the UI.
+            category: string, whether this is a Terraform or environment
+                variable. Valid values are "terraform" or "env".
+            hcl: bool, whether to evaluate the value of the variable as a
+                string of HCL code. Has no effect for environment variables.
+            description: string, a description of the variable.
         """
         self.id = id
         self.attributes = {

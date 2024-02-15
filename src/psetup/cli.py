@@ -15,7 +15,7 @@ from .organization import (
     control as set_org_access,
     add_control as add_org_access
 )
-from .terraform import apply_project as apply_terraform
+from .terraform import apply as apply_terraform
 from .terraform_variable import apply_variableset, apply_variable
 from .project import (
     apply as apply_project,
@@ -26,9 +26,9 @@ from .project import (
 from .workload import apply_pool, apply_provider
 from .service_account import (
     apply as apply_account,
-    control_access as set_account_access
+    control as set_account_access
 )
-from .tag import apply_key, control_access as set_tag_access
+from .tag import apply as apply_key, control as set_tag_access
 from .folder import apply as apply_folder, control as set_folder_access
 from . import iam
 

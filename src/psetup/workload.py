@@ -1,11 +1,26 @@
 """Generate a workload identity pool idempotently.
 
-Can apply a specific configuration for a workload identity pool and create or
-update it in order to match the configuration.
+Can apply a specific configuration for a pool and create or update it in
+order to match the configuration.
 
 Typical usage example:
 
-    org_pool = workload.generate_terraform_provider(setup, project_name)
+  my_pool = workload.apply_pool(
+    project='parent',
+    id='myPoolName',
+    description='',
+    displayName='myPoolDisplayName'
+  )
+
+  my_provider = workload.apply_provider(
+    parent=my_pool.id,
+    id='myProviderName',
+    description='',
+    displayName='myProviderDisplayName',
+    oidc={oidc},
+    attributeMapping={attributeMapping},
+    attributeCondition='condition'
+  )
 """
 
 from googleapiclient.discovery import build
@@ -20,10 +35,10 @@ completion_timeout = 'timeout before resource creation is done.'
 message_error = 'the operation response contained neither a name nor a status.'
 
 def _watch(api, operation, period=5, timeout=60):
-    """
-    Wait for an operation to complete before returning the complettion message.
-        A completed operation should contain the item "done: True" in its
-        message.
+    """Wait for an operation to complete.
+    
+    Waiting loop before returning the completion message. A completed operation
+    should contain the item "done: True" in its message.
 
     Args:
         api: api, the base Google api with the operations resource.
@@ -32,7 +47,8 @@ def _watch(api, operation, period=5, timeout=60):
         period: int, the time interval, in seconds, between two consecutive
             checks of the operation status. Defaults to 5.
         timeout: int, the maximum time interval to wait before the operation
-            is considered a failure if it is not already completed.
+            is considered a failure if it is not already completed, Defaults to
+            60 seconds.
 
     Returns:
         operation, the final operation response after it reached completion.
@@ -87,12 +103,12 @@ def _watch(api, operation, period=5, timeout=60):
     return operation['response']
 
 class WorkloadIdentityPool:
-    """A class to represent a workload identity pool in Google Cloud.
+    """A class to represent a workload identity pool.
 
     Attributes:
         pool_id: string, the ID for the pool, which becomes the final component
             of the resource name.
-        project: string, the name of the project to create this pool in.
+        project: string, the name of the project hosting the pool.
         display_name: string, a user-friendly name for the pool.
         description: string, a description of the pool.
         disabled: boolean, wether the pool is activated or not. Deactivated
@@ -108,9 +124,9 @@ class WorkloadIdentityPool:
         """Initializes the instance based on attributes.
 
         Args:
-            pool_id: string, the ID for the provider, which becomes the final
+            pool_id: string, the ID for the pool, which becomes the final
                 component of the resource name.
-            project: string, the name of the project to create this pool in.
+            project: string, the name of the project hosting the pool.
             display_name: string, a user-friendly name for the pool.
             description: string, a description of the pool.
         """
@@ -148,6 +164,9 @@ class WorkloadIdentityPool:
     @property
     def name(self):
         """Returns the fully qualified name of the instance.
+
+        Returns:
+            string, the fully qualified name of the instance.
         """
         fmt = f'{self.parent}/workloadIdentityPools/{self.pool_id}'
         return fmt
@@ -155,17 +174,20 @@ class WorkloadIdentityPool:
     @property
     def parent(self):
         """Returns the fully qualified name of the parent of the instance.
+
+        Returns:
+            string, the fully qualified name of the parent of the instance.
         """
         fmt = f'{self.project}/locations/global'
         return fmt
 
 class WorkloadIdentityProvider:
-    """A class to represent a workload identity pool provider in Google Cloud.
+    """A class to represent a provider in a workload identity pool.
 
     Attributes:
         provider_id: string, the ID for the provider, which becomes the final
             component of the resource name.
-        parent: string, the name of the pool to create this provider in.
+        parent: string, the name of the pool hosting the provider.
         attribute_condition: string, the condition for the tokens to match.
         attribute_mapping: dict, a map of attributes between tokens.
         description: string, a description of the provider.
@@ -190,7 +212,7 @@ class WorkloadIdentityProvider:
         Args:
             provider_id: string, the ID for the provider, which becomes the
                 final component of the resource name.
-            parent: string, the name of the pool to create this provider in.
+            parent: string, the name of the pool hosting the provider.
             attribute_condition: string, the condition for the tokens to match.
             attribute_mapping: dict, a map of attributes between tokens.
             description: string, a description of the provider.
@@ -245,17 +267,18 @@ class WorkloadIdentityProvider:
     @property
     def name(self):
         """Returns the fully qualified name of the instance.
+
+        Returns:
+            string, the fully qualified name of the instance.
         """
         fmt = f'{self.parent}/providers/{self.provider_id}'
         return fmt
 
-
 def _create_pool(pool):
-    """
-    Create a workload identity pool according to a declared one.
+    """Create a workload identity pool according to a resource declaration.
 
     Args:
-        pool: WorkloadIdentityPool, the delcared workload identity pool.
+        pool: WorkloadIdentityPool, the declared resource.
 
     Returns:
         WorkloadIdentityPool, the workload identity pool created from the
@@ -273,7 +296,8 @@ def _create_pool(pool):
         project=pool.project
     )
 
-    with build('iam', 'v1').projects().locations().workloadIdentityPools() as api:
+    with build('iam', 'v1').projects().locations().workloadIdentityPools() \
+                                                                        as api:
         request = api.create(
             parent=pool.parent,
             body=body,
@@ -285,22 +309,19 @@ def _create_pool(pool):
 
     existing_pool.update_from_dict(result)
 
-    print('pool created... ', end='')
+    print('... pool created... ')
 
     return existing_pool
 
 def _update_pool(declared_pool, existing_pool):
-    """
-    Update an existing workload identity pool compared to a declared one.
+    """Update a workload identity pool according to a resource declaration.
 
     Args:
-        declared_pool: WorkloadIdentityPool, the declared workload identity
-            pool.
-        existing_pool: WorkloadIdentityPool, the existing workload identity
-            pool.
+        declared_pool: WorkloadIdentityPool, the declared resource.
+        existing_pool: WorkloadIdentityPool, the existing resource.
 
     Returns:
-        WorkloadIdentityPool, the workload identity pool updated from the
+        WorkloadIdentityPool, the workload identity pool updated by the
             operation.
     """
     mask = _diff(declared=declared_pool, existing=existing_pool)
@@ -315,7 +336,8 @@ def _update_pool(declared_pool, existing_pool):
     if not mask:
         return existing_pool
 
-    with build('iam', 'v1').projects().locations().workloadIdentityPools() as api:
+    with build('iam', 'v1').projects().locations().workloadIdentityPools() \
+                                                                        as api:
         request = api.patch(
             name=declared_pool.name,
             body=body,
@@ -327,23 +349,21 @@ def _update_pool(declared_pool, existing_pool):
 
     existing_pool.update_from_dict(result)
 
-    print('pool updated... ', end='')
+    print('... pool updated... ')
 
     return existing_pool
 
 def _get_pool(pool):
-    """
-    Get the existing workload identity pool in project corresponding to the
-        declared workload identity pool.
+    """Get a workload identity pool in a Google Cloud project.
 
     Args:
-        pool: WorkloadIdentityPool, the delcared workload identity pool.
+        pool: WorkloadIdentityPool, the declared resource.
 
     Returns:
         WorkloadIdentityPool, the existing workload identity pool.
 
     Raises:
-        ValueError, if there is no workload identity pool matching the
+        IndexError, if there is no workload identity pool matching the
             definition.
     """
     parent = pool.parent
@@ -354,7 +374,8 @@ def _get_pool(pool):
         project=pool.project
     )
 
-    with build('iam', 'v1').projects().locations().workloadIdentityPools() as api:
+    with build('iam', 'v1').projects().locations().workloadIdentityPools() \
+                                                                        as api:
         request = api.list(parent=parent)
 
         while request is not None:
@@ -374,20 +395,16 @@ def _get_pool(pool):
     return existing_pool
 
 def _get_provider(provider):
-    """
-    Get the existing workload identity provider in project corresponding to the
-        declared workload identity provider.
+    """Get a provider in a workload identity pool.
 
     Args:
-        provider: WorkloadIdentityProvider, the delcared workload identity
-            provider.
+        provider: WorkloadIdentityProvider, the declared resource.
 
     Returns:
-        WorkloadIdentityProvider, the existing workload identity provider.
+        WorkloadIdentityProvider, the existing provider.
 
     Raises:
-        ValueError, if there is no workload identity provider matching the
-            definition.
+        IndexError, if there is no provider matching the definition.
     """
     parent = provider.parent
     existing = None
@@ -397,7 +414,9 @@ def _get_provider(provider):
         parent=parent
     )
 
-    with build('iam', 'v1').projects().locations().workloadIdentityPools().providers() as api:
+    wrkld = build('iam', 'v1').projects().locations().workloadIdentityPools()
+
+    with wrkld.providers() as api:
         request = api.list(parent=parent)
 
         while request is not None:
@@ -417,18 +436,14 @@ def _get_provider(provider):
     return existing_provider
 
 def _update_provider(declared_provider, existing_provider):
-    """
-    Update an existing workload identity provider compared to a declared one.
+    """Update a provider according to a resource declaration.
 
     Args:
-        declared_provider: WorkloadIdentityProvider, the declared workload
-            identity provider.
-        existing_provider: WorkloadIdentityProvider, the existing workload
-            identity provider.
+        declared_provider: WorkloadIdentityProvider, the declared resource.
+        existing_provider: WorkloadIdentityProvider, the existing resource.
 
     Returns:
-        WorkloadIdentityProvider, the workload identity provider updated from
-            the operation.
+        WorkloadIdentityProvider, the provider updated by the operation.
     """
     mask = _diff(declared_provider, existing_provider)
     # build the create request body
@@ -445,7 +460,9 @@ def _update_provider(declared_provider, existing_provider):
     if not mask:
         return existing_provider
 
-    with build('iam', 'v1').projects().locations().workloadIdentityPools().providers() as api:
+    wrkld = build('iam', 'v1').projects().locations().workloadIdentityPools()
+
+    with wrkld.providers() as api:
         request = api.patch(
             name=declared_provider.name,
             body=body,
@@ -457,7 +474,7 @@ def _update_provider(declared_provider, existing_provider):
 
     existing_provider.update_from_dict(result)
 
-    print('provider updated... ', end='')
+    print('provider updated... ')
 
     return existing_provider
 
@@ -484,16 +501,14 @@ def _diff(declared, existing):
     return mask
 
 def _create_provider(provider):
-    """
-    Create a workload identity provider according to a declared one.
+    """Create a provider according to a resource declaration.
 
     Args:
-        provider: WorkloadIdentityProvider, the delcared workload identity
-            provider.
+        provider: WorkloadIdentityProvider, the declared resource.
 
     Returns:
-        WorkloadIdentityProvider, the workload identity provider created from
-            the operation.
+        WorkloadIdentityProvider, the provider created from the
+            operation.
     """
     # build the create request body
     body = {
@@ -509,7 +524,9 @@ def _create_provider(provider):
         parent=provider.parent
     )
 
-    with build('iam', 'v1').projects().locations().workloadIdentityPools().providers() as api:
+    wrkld = build('iam', 'v1').projects().locations().workloadIdentityPools()
+
+    with wrkld.providers() as api:
         request = api.create(
             parent=provider.parent,
             body=body,
@@ -521,26 +538,31 @@ def _create_provider(provider):
 
     existing_provider.update_from_dict(result)
 
-    print('provider created... ', end='')
+    print('... provider created... ')
 
     return existing_provider
 
-def apply_pool(project, id, description, displayName):
-    """
-    Generate the workload identity pool and identity provider for terraform.
-        Can either create, update or leave it as it is.
+def apply_pool(project, name, description, displayName):
+    """Generate a workload identity pool.
+
+    Can either create, update or leave it as it is.
 
     Args:
-        setup: dict, the configuration used to build the root structure.
-        project: string, the name of the project hosting the workload identity
+        name: string, the ID for the workload identity pool, which becomes the
+            final component of the resource name.
+        parent: string, the name of the project hosting the workload identity
+            pool.
+        description: string, a description of the workload identity pool.
+        displayName: string, a user-friendly name for the workload identity
             pool.
 
     Returns:
-        WorkloadIdentityPool, the generated workload identity pool.
+        WorkloadIdentityPool, the workload identity pool generated according to
+            the declaration.
     """
     declared_pool = WorkloadIdentityPool(
         project=project.name,
-        pool_id=id,
+        pool_id=name,
         description=description,
         display_name=displayName
     )
@@ -555,22 +577,36 @@ def apply_pool(project, id, description, displayName):
 
     return pool
 
-def apply_provider(parent, id, description, displayName, oidc, attributeMapping, attributeCondition):
-    """
-    Generate the workload identity pool and identity provider for terraform.
-        Can either create, update or leave it as it is.
+def apply_provider(
+        parent,
+        name,
+        description,
+        displayName,
+        oidc,
+        attributeMapping,
+        attributeCondition
+    ):
+    """Generate a provider in a workload identity pool.
+
+    Can either create, update or leave it as it is.
 
     Args:
-        setup: dict, the configuration used to build the root structure.
-        project: string, the name of the project hosting the workload identity
-            pool.
+        name: string, the ID for the provider, which becomes the final
+            component of the resource name.
+        parent: string, the name of the pool hosting the provider.
+        attributeCondition: string, the condition for the tokens to match.
+        attributeMapping: dict, a map of attributes between tokens.
+        description: string, a description of the provider.
+        displayName: string, a user-friendly name for the provider.
+        oidc: dict, parameters for the openID connect protocol.
 
     Returns:
-        WorkloadIdentityPool, the generated workload identity pool.
+        WorkloadIdentityProvider, the provider generated according to the
+            declaration.
     """
     declared_provider = WorkloadIdentityProvider(
         parent=parent.name,
-        provider_id=id,
+        provider_id=name,
         description=description,
         display_name=displayName,
         oidc=oidc,

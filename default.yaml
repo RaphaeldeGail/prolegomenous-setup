@@ -34,11 +34,11 @@ workspaceTag:
   shortName: 'workspace'
   description: 'Name of the workspace'
 organizationPool:
-  id: 'organization-identity-pool'
+  name: 'organization-identity-pool'
   displayName: 'Organization Identities'
   description: 'This workload identity pool contains identity providers that are able to work at the root level of the Google organization.'
 terraformProvider:
-  id: 'tfc-oidc'
+  name: 'tfc-oidc'
   description: 'This provider will authorize users from the Terraform Cloud organization to identify on the Google Cloud organization in order to work at the root level of the Google organization.'
   displayName: 'Terraform Cloud OIDC Provider'
   oidc:

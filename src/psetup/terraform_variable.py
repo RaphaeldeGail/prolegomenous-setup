@@ -5,9 +5,9 @@ update it in order to match the configuration.
 
 Typical usage example:
 
-  my_varset = terraform_variable.apply(
+  my_varset = terraform_variable.apply_variableset(
     org_id='myOrg',
-    name='nyName',
+    name='myName',
     description='',
     project='projectId')
 

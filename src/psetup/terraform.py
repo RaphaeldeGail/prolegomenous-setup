@@ -1,40 +1,50 @@
+"""Generate a terraform project idempotently.
+
+Can apply a specific configuration for a project and create or update it in
+order to match the configuration.
+
+Typical usage example:
+
+  my_project = terraform.apply(
+    org_id='myOrg',
+    name='myName'
+  )
+"""
+
 from os import getenv
 from terrasnek.api import TFC
 
 class Project:
-    """A class to represent a service account in Google Cloud project.
+    """A class to represent a project in a Terraform Cloud organization.
 
     Attributes:
-        account_id: string, the ID for the service account, which becomes the
-            final component of the resource name.
-        description: string, a description of the service account.
-        display_name: string, a user-friendly name for the service account.
-        project: string, the ID of the project to create this account in.
-
+        id: string, the ID for the project, which becomes the final
+            component of the resource name.
+        attributes: dict, a map for the definition of the project.
+        relationships: dict, a map of bounds for the project.
     """
 
     def __init__(self,
-        id=None,
+        project_id=None,
         name=None,
-        organization=None
+        org_id=None
     ):
         """Initializes the instance based on attributes.
 
         Args:
-            account_id: string, the ID for the service account, which becomes
-                the final component of the resource name.
-            project: string, the ID of the project to create this account in.
-            display_name: string, a user-friendly name for the service account.
-            description: string, a description of the service account.
+            org_id: string, the Terraform Cloud organization's ID. 
+            project_id: string, the ID for the project, which becomes the final
+                component of the resource name.
+            name: string, the name of the project.
         """
-        self.id = id
+        self.id = project_id
         self.attributes = {
             'name': name,
         }
         self.relationships = {
             'organization': {
                 'data': {
-                    'id': organization,
+                    'id': org_id,
                     'type': 'organizations'
                 },
             }
@@ -60,15 +70,14 @@ class Project:
         except KeyError:
             pass
 
-def _create_project(declared_project):
-    """
-    Create a service account according to a declared one.
+def _create(declared_project):
+    """Create a project according to a resource declaration.
 
     Args:
-        sa: ServiceAccount, the delcared service account.
+        declared_project: Project, the declared resource.
 
     Returns:
-        ServiceAccount, the service account created from the operation.
+        Project, the project created from the operation.
     """
     body = {
         'data': {
@@ -81,7 +90,7 @@ def _create_project(declared_project):
 
     existing_project = Project(
         name=declared_project.attributes['name'],
-        organization=declared_project.relationships['organization']['data']['id']
+        org_id=declared_project.relationships['organization']['data']['id']
     )
 
     try:
@@ -96,32 +105,29 @@ def _create_project(declared_project):
 
     result = api.projects.create(body)
 
-    print('Terraform Cloud project created... ', end='')
+    print('... Terraform Cloud project created... ', end='')
 
     existing_project.update_from_dict(result['data'])
 
     return existing_project
 
-def _get_project(declared_project):
-    """
-    Get the existing service account in project corresponding to the
-        declared service account.
+def _get(declared_project):
+    """Get a project in a Terraform Cloud organization.
 
     Args:
-        sa: ServiceAccount, the delcared service account.
+        declared_project: Project, the declared resource.
 
     Returns:
-        ServiceAccount, the existing service account.
+        Project, the existing project.
 
     Raises:
-        ValueError, if there is no service account matching the
-            definition.
+        IndexError, if there is no project matching the definition.
     """
     projects = None
 
     existing_project = Project(
         name=declared_project.attributes['name'],
-        organization=declared_project.relationships['organization']['data']['id']
+        org_id=declared_project.relationships['organization']['data']['id']
     )
 
     try:
@@ -143,26 +149,24 @@ def _get_project(declared_project):
 
     return existing_project
 
-def apply_project(organization, project):
-    """Generate the builder servie account for the root structure.
-    
+def apply(org_id, name):
+    """Generate a project.
+
     Can either create, update or leave it as it is.
 
     Args:
-        setup: dict, the configuration used to build the root structure.
-        parent: string, the ID of the project hosting the service account.
-        pool_id: string, the name of the workload identity pool that can
-            delegate access to the service account.
+        org_id: string, the Terraform Cloud organization's ID.
+        name: string, the name of the project.
 
     Returns:
-        ServiceAccount, the generated service account.
+        Project, the project generated according to the declaration.
     """
-    declared_project = Project(name=project, organization=organization)
+    declared_project = Project(name=name, org_id=org_id)
 
     try:
-        project = _get_project(declared_project)
+        project = _get(declared_project)
     except IndexError as e:
         if e.args[0] == 0:
-            project = _create_project(declared_project)
+            project = _create(declared_project)
 
     return project

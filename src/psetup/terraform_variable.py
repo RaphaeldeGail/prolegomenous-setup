@@ -34,7 +34,7 @@ class Variable:
     """
 
     def __init__(self,
-        id=None,
+        var_id=None,
         key=None,
         value=None,
         sensitive=None,
@@ -45,7 +45,7 @@ class Variable:
         """Initializes the instance based on attributes.
 
         Args:
-            id: string, the ID for the variable, which becomes the final
+            var_id: string, the ID for the variable, which becomes the final
                 component of the resource name.
             key: string, the name of the variable.
             value: string, the value of the variable.
@@ -57,7 +57,7 @@ class Variable:
                 string of HCL code. Has no effect for environment variables.
             description: string, a description of the variable.
         """
-        self.id = id
+        self.id = var_id
         self.attributes = {
             'key': key,
             'value': value,
@@ -112,7 +112,7 @@ class VariableSet:
     """
 
     def __init__(self,
-            id=None,
+            varset_id=None,
             name=None,
             description=None,
             project=None,
@@ -129,23 +129,23 @@ class VariableSet:
                 only specifically on certain projects.
             description: string, a description of the variable set.
         """
-        self.id = id
+        self.id = varset_id
         self.attributes = {
-            "name": name,
-            "description": description,
-            "global": glob,
-            "priority": False
+            'name': name,
+            'description': description,
+            'global': glob,
+            'priority': False
         }
         if project is not None:
             self.projects = [
                 {
-                    "id": project,
-                    "type": "projects"
+                    'id': project,
+                    'type': 'projects'
                 }
             ]
         else:
             self.projects = []
-        
+
     def update_from_dict(self, body):
         """Update the instance from a dictionnary.
 
@@ -189,6 +189,14 @@ class VariableSet:
         return mask
 
 def _build(org_id):
+    """Build an API client for a Terraform Cloud organization.
+
+    Args:
+        org_id: string, the Terraform Cloud organization's ID.
+
+    Returns:
+        terrasnek.api.TFC , the api client for the organization.
+    """
     try:
         TFC_TOKEN = getenv('TFC_TOKEN')
     except KeyError as e:
@@ -202,14 +210,15 @@ def _build(org_id):
     return api
 
 def _create_variable(org_id, varset_id, declared_variable):
-    """
-    Create a service account according to a declared one.
+    """Create a variable according to a resource declaration.
 
     Args:
-        sa: ServiceAccount, the delcared service account.
+        org_id: string, the Terraform Cloud organization's ID.
+        varset_id: string, the variable set ID hosting the variable.
+        declared_variable: Variable, the declared resource.
 
     Returns:
-        ServiceAccount, the service account created from the operation.
+        Variable, the variable created from the operation.
     """
     body = {
         'data': {
@@ -224,25 +233,23 @@ def _create_variable(org_id, varset_id, declared_variable):
 
     result = _build(org_id).var_sets.add_var_to_varset(varset_id, body)
 
-    print('Terraform Cloud variable created... ', end='')
+    print('... Terraform Cloud variable created... ')
 
     existing_variable.update_from_dict(result['data'])
 
     return existing_variable
 
 def _update_variable(org_id, varset_id, declared_variable, existing_variable):
-    """
-    Update an existing workload identity provider compared to a declared one.
+    """Update a variable according to a resource declaration.
 
     Args:
-        declared_provider: WorkloadIdentityProvider, the declared workload
-            identity provider.
-        existing_provider: WorkloadIdentityProvider, the existing workload
-            identity provider.
+        org_id: string, the Terraform Cloud organization's ID.
+        varset_id: string, the variable set ID hosting the variable.    
+        declared_variable: Variable, the declared resource.
+        existing_variable: Variable, the existing resource.
 
     Returns:
-        WorkloadIdentityProvider, the workload identity provider updated from
-            the operation.
+        Variable, the variable updated by the operation.
     """
     mask = existing_variable.diff(declared_variable)
 
@@ -257,28 +264,31 @@ def _update_variable(org_id, varset_id, declared_variable, existing_variable):
         }
     }
 
-    result = _build(org_id).var_sets.update_var_in_varset(varset_id, existing_variable.id, body)
+    result = _build(org_id).var_sets.update_var_in_varset(
+        varset_id,
+        existing_variable.id,
+        body
+    )
 
     existing_variable.update_from_dict(result['data'])
 
-    print('variable updated... ', end='')
+    print('... variable updated... ')
 
     return existing_variable
 
 def _get_variable(org_id, varset_id, declared_variable):
-    """
-    Get the existing service account in project corresponding to the
-        declared service account.
+    """Get a variable in a Terraform Cloud organization.
 
     Args:
-        sa: ServiceAccount, the delcared service account.
+        org_id: string, the Terraform Cloud organization's ID.
+        varset_id: string, the variable set ID hosting the variable.
+        declared_variable: Variable, the declared resource.
 
     Returns:
-        ServiceAccount, the existing service account.
+        Variable, the existing variable.
 
     Raises:
-        ValueError, if there is no service account matching the
-            definition.
+        IndexError, if there is no variable matching the definition.
     """
     exists = False
 
@@ -298,19 +308,35 @@ def _get_variable(org_id, varset_id, declared_variable):
 
     return existing_variable
 
-def apply_variable(org_id, varset_id, key, value, category, sensitive=False,hcl=False, description=None):
-    """Generate the builder servie account for the root structure.
-    
+def apply_variable(
+        org_id,
+        varset_id,
+        key,
+        value,
+        category,
+        sensitive=False,
+        hcl=False,
+        description=None
+    ):
+    """Generate a variable.
+
     Can either create, update or leave it as it is.
 
     Args:
-        setup: dict, the configuration used to build the root structure.
-        parent: string, the ID of the project hosting the service account.
-        pool_id: string, the name of the workload identity pool that can
-            delegate access to the service account.
+        org_id: string, the Terraform Cloud organization's ID.
+        varset_id: string, the variable set ID hosting the variable.
+        key: string, the name of the variable.
+        value: string, the value of the variable.
+        sensitive: bool, whether the value is sensitive. If true, variable is
+            not visible in the UI.
+        category: string, whether this is a Terraform or environment variable.
+            Valid values are "terraform" or "env".
+        hcl: bool, whether to evaluate the value of the variable as a string of
+            HCL code. Has no effect for environment variables.
+        description: string, a description of the variable.
 
     Returns:
-        ServiceAccount, the generated service account.
+        Variable, the variable generated according to the declaration.
     """
     declared_variable = Variable(
         key=key,
@@ -326,7 +352,7 @@ def apply_variable(org_id, varset_id, key, value, category, sensitive=False,hcl=
     except IndexError as e:
         if e.args[0] == 0:
             variable = _create_variable(org_id, varset_id, declared_variable)
-            
+
             return variable
 
     variable = _update_variable(org_id, varset_id, declared_variable, variable)
@@ -334,25 +360,25 @@ def apply_variable(org_id, varset_id, key, value, category, sensitive=False,hcl=
     return variable
 
 def _create_variableset(org_id, declared_variableset):
-    """
-    Create a service account according to a declared one.
+    """Create a variable set according to a resource declaration.
 
     Args:
-        sa: ServiceAccount, the delcared service account.
+        org_id: string, the Terraform Cloud organization's ID.
+        declared_variableset: VariableSet, the declared resource.
 
     Returns:
-        ServiceAccount, the service account created from the operation.
+        VariableSet, the variableset created from the operation.
     """
     body = {
-        "data": {
-            "type": "varsets",
-            "attributes": declared_variableset.attributes,
-            "relationships": {
-                "projects": {
-                    "data": [
+        'data': {
+            'type': 'varsets',
+            'attributes': declared_variableset.attributes,
+            'relationships': {
+                'projects': {
+                    'data': [
                         {
-                            "id": project['id'],
-                            "type": "projects"
+                            'id': project['id'],
+                            'type': 'projects'
                         } for project in declared_variableset.projects
                     ]
                 }
@@ -366,25 +392,22 @@ def _create_variableset(org_id, declared_variableset):
 
     result = _build(org_id).var_sets.create(body)
 
-    print('Terraform Cloud variableset created... ', end='')
+    print('... Terraform Cloud variableset created... ')
 
     existing_variableset.update_from_dict(result['data'])
 
     return existing_variableset
 
 def _update_variableset(org_id, declared_variableset, existing_variableset):
-    """
-    Update an existing workload identity provider compared to a declared one.
+    """Update a variable set according to a resource declaration.
 
     Args:
-        declared_provider: WorkloadIdentityProvider, the declared workload
-            identity provider.
-        existing_provider: WorkloadIdentityProvider, the existing workload
-            identity provider.
+        org_id: string, the Terraform Cloud organization's ID.  
+        declared_variable: VariableSet, the declared resource.
+        existing_variable: VariableSet, the existing resource.
 
     Returns:
-        WorkloadIdentityProvider, the workload identity provider updated from
-            the operation.
+        VariableSet, the variable set updated by the operation.
     """
     mask = existing_variableset.diff(declared_variableset)
 
@@ -402,7 +425,8 @@ def _update_variableset(org_id, declared_variableset, existing_variableset):
                         {
                             'id': project['id'],
                             'type': 'projects'
-                        } for project in declared_variableset.projects if declared_variableset.projects
+                        } for project in declared_variableset.projects \
+                            if declared_variableset.projects
                     ]
                 },
             }
@@ -414,24 +438,22 @@ def _update_variableset(org_id, declared_variableset, existing_variableset):
 
     existing_variableset.update_from_dict(result['data'])
 
-    print('variable updated... ', end='')
+    print('.. variable set updated... ')
 
     return existing_variableset
 
 def _get_variableset(org_id, declared_variableset):
-    """
-    Get the existing service account in project corresponding to the
-        declared service account.
+    """Get a variable set in a Terraform Cloud organization.
 
     Args:
-        sa: ServiceAccount, the delcared service account.
+        org_id: string, the Terraform Cloud organization's ID.
+        declared_variable: VariableSet, the declared resource.
 
     Returns:
-        ServiceAccount, the existing service account.
+        VariableSet, the existing variable set.
 
     Raises:
-        ValueError, if there is no service account matching the
-            definition.
+        IndexError, if there is no variable set matching the definition.
     """
     exists = False
 
@@ -442,7 +464,8 @@ def _get_variableset(org_id, declared_variableset):
     variablesets = _build(org_id).var_sets.list_all_for_org()
 
     for variableset in variablesets.get('data', []):
-        if variableset['attributes']['name'] == declared_variableset.attributes['name']:
+        if variableset['attributes']['name'] == \
+                                        declared_variableset.attributes['name']:
             exists = True
             existing_variableset.update_from_dict(variableset)
 
@@ -452,18 +475,20 @@ def _get_variableset(org_id, declared_variableset):
     return existing_variableset
 
 def apply_variableset(org_id, name, description, project=None, glob=False):
-    """Generate the builder servie account for the root structure.
-    
+    """Generate a variable set.
+
     Can either create, update or leave it as it is.
 
     Args:
-        setup: dict, the configuration used to build the root structure.
-        parent: string, the ID of the project hosting the service account.
-        pool_id: string, the name of the workload identity pool that can
-            delegate access to the service account.
+        org_id: string, the Terraform Cloud organization's ID.
+        name: string, the name of the variable set.
+        project: string, the ID of the project to link to the variable set.
+        glob: bool, whether the variable set should be applied globally, or
+            only specifically on certain projects.
+        description: string, a description of the variable set.
 
     Returns:
-        ServiceAccount, the generated service account.
+        Variable, the variable generated according to the declaration.
     """
     declared_variableset = VariableSet(
         name=name,

@@ -149,7 +149,7 @@ def _create(sa):
 
     existing_sa.update_from_dict(result)
 
-    print('... service account created... ', end='')
+    print('... service account created... ')
 
     return existing_sa
 
@@ -193,7 +193,7 @@ def _update(declared_sa, existing_sa):
 
     existing_sa.update_from_dict(result)
 
-    print('... service account updated... ', end='')
+    print('... service account updated... ')
 
     return existing_sa
 

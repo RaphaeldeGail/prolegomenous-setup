@@ -28,8 +28,10 @@ def _override(base, update):
     Returns:
         dict, the updated dictionnary.
     """
-    for key,value in update.items():
-        if isinstance(value, dict):
+    for key, value in update.items():
+        if key not in base:
+            base[key] = value
+        elif isinstance(value, dict):
             base[key] = _override(base[key], value)
         else:
             base[key] = value

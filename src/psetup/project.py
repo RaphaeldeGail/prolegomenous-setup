@@ -130,10 +130,10 @@ def services(project, services_list):
         service_ids=services_list
     )
 
-    operation = client.batch_services(request=request)
+    operation = client.batch_enable_services(request=request)
     # Waiting loop for the operation to end
     while not operation.done():
-        print('... ', end='')
+        print('... ')
 
     return None
 

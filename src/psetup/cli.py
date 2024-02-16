@@ -112,7 +112,7 @@ def build(setup):
     """Build the elements of a root structure.
 
     Create the various resources on Terraform Cloud and Google Cloud. Existing
-    roles will be updated or left as it is, according to the setup plan.
+    resources will be updated or left as it is, according to the setup plan.
 
     Args:
         setup: dict, the declared setup.
@@ -144,7 +144,7 @@ def build(setup):
 
     print('generating Terraform Cloud project... ')
 
-    tfc_id = apply_terraform(project=tfc_prj, organization=tfc_org)
+    tfc_id = apply_terraform(name=tfc_prj, org_id=tfc_org)
 
     print('DONE')
 

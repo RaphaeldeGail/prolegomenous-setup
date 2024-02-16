@@ -105,7 +105,7 @@ def _create(declared_project):
 
     result = api.projects.create(body)
 
-    print('... Terraform Cloud project created... ', end='')
+    print('... Terraform Cloud project created... ')
 
     existing_project.update_from_dict(result['data'])
 

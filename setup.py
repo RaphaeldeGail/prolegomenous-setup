@@ -9,6 +9,7 @@ dependencies = [
     'google-cloud-resource-manager >= 1.10.4',
     'google-cloud-service-usage >= 1.8.0',
     'grpc-google-iam-v1 >= 0.12.7',
+    'PyYAML >= 6.0.1',
     'terrasnek >= 0.1.13',
 ]
 

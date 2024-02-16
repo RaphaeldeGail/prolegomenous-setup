@@ -45,8 +45,8 @@ class Role:
                 role.
             stage: string, a stage of release for the role.
             title: string, a user-friendly name for the role.
-            role_id: string, the ID for the role, which becomes the final component
-            of the resource name.
+            role_id: string, the ID for the role, which becomes the final
+                component of the resource name.
             description: string, a description of the role.
         """
         self.role_id = role_id
@@ -133,9 +133,9 @@ def _create(role):
         'roleId': role.role_id,
         'role': {
             'description': role.description,
-            "includedPermissions": role.includedPermissions,
+            'includedPermissions': role.includedPermissions,
             'stage': role.stage,
-            "title": role.title
+            'title': role.title
         }
     }
 

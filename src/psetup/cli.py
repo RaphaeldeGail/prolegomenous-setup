@@ -30,6 +30,8 @@ from .service_account import (
 )
 from .tag import apply as apply_key, control as set_tag_access
 from .folder import apply as apply_folder, control as set_folder_access
+from .identity import apply_group, apply_member
+from .billing import control as set_billing_access
 from . import iam
 
 # Actions functions
@@ -288,6 +290,16 @@ def build(setup):
     apply_variable(
         org_id=tfc_org,
         varset_id=org_varset.id,
+        key='billing_account',
+        value=setup['billingAccount'].split('/')[-1],
+        sensitive=True,
+        category='terraform',
+        hcl=False,
+        description='The ID of the billing account used for the workspaces.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=org_varset.id,
         key='organization',
         value=org['displayName'],
         sensitive=False,
@@ -329,7 +341,7 @@ def build(setup):
         org_id=tfc_org,
         varset_id=org_varset.id,
         key='workspaces_folder',
-        value=workspace_folder.name,
+        value=workspace_folder.name.split('/')[-1],
         sensitive=False,
         category='terraform',
         hcl=False,
@@ -340,6 +352,55 @@ def build(setup):
     print('DONE')
 
     ##### END #####
+
+    return None
+
+def billing(setup):
+    """Create the 'Billing Users' group for a root structure.
+
+    Create the 'Billing Users' google group and add the builder account as its
+    manager.
+
+    Args:
+        setup: dict, the declared setup.
+    """
+    #create a google group
+    #set billingAccountUser permission for group on billing account
+    #add builder account as group manager
+    org = setup['googleOrganization']['name']
+
+    directory = setup['googleOrganization']['directoryCustomerId']
+
+    project = setup['rootProject']
+    project['project_id'] = project['displayName']
+    project.pop('services')
+
+    account = setup['builderAccount']
+
+    print('Looking for builder account... ')
+
+    project = apply_project(parent=org, **project)
+
+    builder_account = f'{setup["builderAccount"]["name"]}@{project.project_id}.iam.gserviceaccount.com'
+
+    print('DONE')
+    print('Create a Billing Google group... ')
+
+    billing_group = apply_group(email='yoyo', parent=f'customers/{directory}', displayName='yoyo', description='yoyo')
+
+    print(billing_group.name)
+
+    print('DONE')
+    print('Set IAM access for the group... ')
+
+    set_billing_access()
+
+    print('DONE')
+    print('Add the builder account to the group... ')
+
+    apply_member()
+
+    print('DONE')
 
     return None
 
@@ -361,7 +422,7 @@ sub_command = {
         'help': 'Select one action, preferably following the list order.'
 }
 
-actions = [show, init, role, build]
+actions = [show, init, role, build, billing]
 
 def main():
     """Main function for psetup client.

@@ -185,12 +185,6 @@ builderRole:
   description: Can build workspace.
   stage: GA
   includedPermissions:
-    - billing.accounts.get
-    - billing.accounts.create
-    - billing.accounts.list
-    - billing.resourceAssociations.create
-    - billing.resourceAssociations.delete
-    - billing.resourceAssociations.list
     - cloudkms.cryptoKeys.create
     - cloudkms.cryptoKeys.get
     - cloudkms.cryptoKeys.getIamPolicy

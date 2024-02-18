@@ -77,6 +77,7 @@ def from_yaml(custom_config=None):
     admins_group = getenv('ADMINS_GROUP', None)
     policy_group = getenv('POLICY_GROUP', None)
     executive_group = getenv('EXECUTIVE_GROUP', None)
+    billing_group = getenv('BILLING_GROUP', None)
     tfc_organization = getenv('TFC_ORGANIZATION', None)
 
     # Fetch organization data
@@ -89,6 +90,9 @@ def from_yaml(custom_config=None):
             'directoryCustomerId': org.directory_customer_id
         },
         'billingAccount': google_billing_account,
+        'billingGroup': {
+            'email': billing_group
+        },
         'owner':  external_owner,
         'googleGroups': {
             'finops': finops_group,
@@ -106,6 +110,6 @@ def from_yaml(custom_config=None):
             update = safe_load(f)
         config = _override(config, update)
 
-    environment.update(config)
+    config = _override(config, environment)
 
-    return environment
+    return config

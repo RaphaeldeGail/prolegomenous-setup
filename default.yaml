@@ -6,6 +6,9 @@ credentialsVariableSet:
 organizationVariableSet:
   name: 'Organization Set'
   description: 'Variables at the organization scope.'
+billingGroup:
+  displayName: 'Billing Users Group'
+  description: 'Group of identities with billing users permission.'
 rootProject:
   displayName: 'root'
   labels:

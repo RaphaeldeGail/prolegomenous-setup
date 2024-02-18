@@ -30,7 +30,7 @@ from .service_account import (
 )
 from .tag import apply as apply_key, control as set_tag_access
 from .folder import apply as apply_folder, control as set_folder_access
-from .identity import apply_group, apply_member
+from .identity import apply_group, apply_membership
 from .billing import control as set_billing_access
 from . import iam
 
@@ -384,11 +384,9 @@ def billing(setup):
     builder_account = f'{setup["builderAccount"]["name"]}@{project.project_id}.iam.gserviceaccount.com'
 
     print('DONE')
-    print('Create a Billing Google group... ')
+    print('Generate a Billing Google group... ')
 
-    billing_group = apply_group(email='yoyo', parent=f'customers/{directory}', displayName='yoyo', description='yoyo')
-
-    print(billing_group.name)
+    billing_group = apply_group(parent=f'customers/{directory}', **(setup['billingGroup']))
 
     print('DONE')
     print('Set IAM access for the group... ')
@@ -398,7 +396,7 @@ def billing(setup):
     print('DONE')
     print('Add the builder account to the group... ')
 
-    apply_member()
+    apply_membership(parent=billing_group.name, email=builder_account, roles=['MANAGER', 'MEMBER'])
 
     print('DONE')
 

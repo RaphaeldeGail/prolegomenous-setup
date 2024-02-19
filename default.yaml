@@ -205,6 +205,7 @@ builderRole:
     - cloudkms.keyRings.setIamPolicy
     - cloudkms.locations.generateRandomBytes
     - cloudkms.locations.get
+    - cloudkms.cryptoKeyVersions.get
     - dns.dnsKeys.get
     - dns.dnsKeys.list
     - dns.managedZoneOperations.get
@@ -262,8 +263,6 @@ builderRole:
     - resourcemanager.tagValues.update
     - resourcemanager.tagValueBindings.create
     - resourcemanager.tagValueBindings.delete
-    - resourcemanager.hierarchyNodes.createTagBinding
-    - resourcemanager.hierarchyNodes.deleteTagBinding
     - storage.buckets.create
     - storage.buckets.createTagBinding
     - storage.buckets.deleteTagBinding
@@ -274,3 +273,10 @@ builderRole:
     - storage.buckets.listTagBindings
     - storage.buckets.setIamPolicy
     - storage.buckets.update
+    - serviceusage.quotas.get
+    - serviceusage.services.get
+    - serviceusage.services.list
+    - serviceusage.services.disable
+    - serviceusage.services.enable
+    - billing.resourcebudgets.read
+    - billing.resourcebudgets.write

@@ -109,3 +109,19 @@ def workspace_folder(setup, builder_account):
     iam.bindings.add(role=builder_role, members=[build])
 
     return iam
+
+def billing_account(setup):
+    """Returns the IAM policy for the billing account.
+
+    Args:
+        setup: dict, the declared configuration for the root structure.
+
+    Returns:
+        google.iam.v1.policy_pb2.Policy, the resulting IAM policy.
+    """
+    bill = f'group:{setup["billingGroup"]["email"]}'
+
+    iam = Policy()
+    iam.bindings.add(role='roles/billing.user', members=[bill])
+
+    return iam

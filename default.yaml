@@ -260,6 +260,10 @@ builderRole:
     - resourcemanager.tagValues.list
     - resourcemanager.tagValues.setIamPolicy
     - resourcemanager.tagValues.update
+    - resourcemanager.tagValueBindings.create
+    - resourcemanager.tagValueBindings.delete
+    - resourcemanager.hierarchyNodes.createTagBinding
+    - resourcemanager.hierarchyNodes.deleteTagBinding
     - storage.buckets.create
     - storage.buckets.createTagBinding
     - storage.buckets.deleteTagBinding

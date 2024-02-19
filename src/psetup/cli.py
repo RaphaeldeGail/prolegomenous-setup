@@ -375,8 +375,6 @@ def billing(setup):
     project['project_id'] = project['displayName']
     project.pop('services')
 
-    account = setup['builderAccount']
-
     print('Looking for builder account... ')
 
     project = apply_project(parent=org, **project)
@@ -391,7 +389,7 @@ def billing(setup):
     print('DONE')
     print('Set IAM access for the group... ')
 
-    set_billing_access()
+    set_billing_access(setup['billingAccount'], iam.billing_account(setup))
 
     print('DONE')
     print('Add the builder account to the group... ')

@@ -188,14 +188,12 @@ builderRole:
   description: Can build workspace.
   stage: GA
   includedPermissions:
-    - cloudkms.cryptoKeys.create
-    - cloudkms.cryptoKeys.get
-    - cloudkms.cryptoKeys.getIamPolicy
-    - cloudkms.cryptoKeys.list
-    - cloudkms.cryptoKeys.setIamPolicy
-    - cloudkms.cryptoKeys.update
-    - cloudkms.keyRings.create
-    - cloudkms.keyRings.createTagBinding
+    - billing.budgets.get
+    - billing.resourcebudgets.read
+    - billing.resourcebudgets.write
+    - cloudkms.cryptoKeyVersions.destroy
+    - cloudkms.cryptoKeyVersions.get
+    - cloudkms.cryptoKeyVersions.list
     - cloudkms.keyRings.deleteTagBinding
     - cloudkms.keyRings.get
     - cloudkms.keyRings.getIamPolicy
@@ -205,7 +203,6 @@ builderRole:
     - cloudkms.keyRings.setIamPolicy
     - cloudkms.locations.generateRandomBytes
     - cloudkms.locations.get
-    - cloudkms.cryptoKeyVersions.get
     - dns.dnsKeys.get
     - dns.dnsKeys.list
     - dns.managedZoneOperations.get
@@ -217,6 +214,11 @@ builderRole:
     - dns.managedZones.list
     - dns.managedZones.setIamPolicy
     - dns.managedZones.update
+    - iam.roles.create
+    - iam.roles.delete
+    - iam.roles.get
+    - iam.roles.list
+    - iam.roles.update
     - iam.serviceAccounts.create
     - iam.serviceAccounts.delete
     - iam.serviceAccounts.get
@@ -261,10 +263,14 @@ builderRole:
     - resourcemanager.tagValues.list
     - resourcemanager.tagValues.setIamPolicy
     - resourcemanager.tagValues.update
-    - resourcemanager.tagValueBindings.create
-    - resourcemanager.tagValueBindings.delete
+    - serviceusage.quotas.get
+    - serviceusage.services.disable
+    - serviceusage.services.enable
+    - serviceusage.services.get
+    - serviceusage.services.list
     - storage.buckets.create
     - storage.buckets.createTagBinding
+    - storage.buckets.delete
     - storage.buckets.deleteTagBinding
     - storage.buckets.get
     - storage.buckets.getIamPolicy
@@ -273,10 +279,3 @@ builderRole:
     - storage.buckets.listTagBindings
     - storage.buckets.setIamPolicy
     - storage.buckets.update
-    - serviceusage.quotas.get
-    - serviceusage.services.get
-    - serviceusage.services.list
-    - serviceusage.services.disable
-    - serviceusage.services.enable
-    - billing.resourcebudgets.read
-    - billing.resourcebudgets.write

@@ -9,7 +9,10 @@ Typical usage example:
 
 from google.iam.v1.policy_pb2 import Policy
 
-def organization(setup):
+from .config import from_env
+from .organization import find as find_organization
+
+def organization(owner, admins, finops, policy):
     """Returns the IAM policy for the Google organization.
 
     Args:
@@ -19,21 +22,21 @@ def organization(setup):
         google.iam.v1.policy_pb2.Policy, the resulting IAM policy.
     """
     prefix = 'roles/resourcemanager.organization'
-    adm = f'group:{setup["googleGroups"]["admins"]}'
-    fin = f'group:{setup["googleGroups"]["finops"]}'
-    pol = f'group:{setup["googleGroups"]["policy"]}'
-    owner = f'user:{setup["owner"]}'
+    adm = f'group:{admins}'
+    fin = f'group:{finops}'
+    pol = f'group:{policy}'
+    ownr = f'user:{owner}'
 
     iam = Policy()
     iam.bindings.add(role='roles/billing.admin', members=[fin])
     iam.bindings.add(role='roles/iam.organizationRoleAdmin', members=[adm])
     iam.bindings.add(role='roles/orgpolicy.policyAdmin', members=[pol])
-    iam.bindings.add(role=f'{prefix}Admin', members=[adm, owner])
+    iam.bindings.add(role=f'{prefix}Admin', members=[adm, ownr])
     iam.bindings.add(role=f'{prefix}Viewer', members=[fin, pol])
 
     return iam
 
-def project(setup):
+def project(executives):
     """Returns the IAM policy for the root project.
 
     Args:
@@ -42,14 +45,14 @@ def project(setup):
     Returns:
         google.iam.v1.policy_pb2.Policy, the resulting IAM policy.
     """
-    exe = f'group:{setup["googleGroups"]["executive"]}'
+    exe = f'group:{executives}'
 
     iam = Policy()
     iam.bindings.add(role='roles/owner', members=[exe])
 
     return iam
 
-def account(setup, pool, tfc_project):
+def account(executives, pool, tfc_project):
     """Returns the IAM policy for the builder account.
 
     Args:
@@ -63,7 +66,7 @@ def account(setup, pool, tfc_project):
     """
     prefix = f'principalSet://iam.googleapis.com/{pool.name}'
     principal = f'{prefix}/attribute.terraform_project_id/{tfc_project}'
-    exe = f'group:{setup["googleGroups"]["executive"]}'
+    exe = f'group:{executives}'
 
     iam = Policy()
     iam.bindings.add(role='roles/iam.serviceAccountTokenCreator', members=[exe])
@@ -88,7 +91,7 @@ def workspace_tag(builder_account):
 
     return iam
 
-def workspace_folder(setup, builder_account):
+def workspace_folder(setup, builder_account, executives, org_name):
     """Returns the IAM policy for the Workspace folder.
 
     Args:
@@ -99,10 +102,9 @@ def workspace_folder(setup, builder_account):
     Returns:
         google.iam.v1.policy_pb2.Policy, the resulting IAM policy.
     """
-    org = setup['googleOrganization']['name']
-    builder_role = f'{org}/roles/{setup["builderRole"]["name"]}'
+    builder_role = f'{org_name}/roles/{setup["builderRole"]["name"]}'
     build = f'serviceAccount:{builder_account.email}'
-    exe = f'group:{setup["googleGroups"]["executive"]}'
+    exe = f'group:{executives}'
 
     iam = Policy()
     iam.bindings.add(role='roles/resourcemanager.folderAdmin', members=[exe])
@@ -110,7 +112,7 @@ def workspace_folder(setup, builder_account):
 
     return iam
 
-def billing_account(setup):
+def billing_account(billing_group):
     """Returns the IAM policy for the billing account.
 
     Args:
@@ -119,7 +121,7 @@ def billing_account(setup):
     Returns:
         google.iam.v1.policy_pb2.Policy, the resulting IAM policy.
     """
-    bill = f'group:{setup["billingGroup"]["email"]}'
+    bill = f'group:{billing_group}'
 
     iam = Policy()
     iam.bindings.add(role='roles/billing.user', members=[bill])

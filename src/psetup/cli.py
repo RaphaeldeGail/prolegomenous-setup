@@ -9,11 +9,12 @@ from pprint import pprint
 from random import randint
 from google.iam.v1.policy_pb2 import Policy
 # local imports
-from .config import from_yaml
+from .config import from_yaml, from_env
 from .role import apply as apply_role
 from .organization import (
     control as set_org_access,
-    add_control as add_org_access
+    add_control as add_org_access,
+    find as find_organization
 )
 from .terraform import apply as apply_terraform
 from .terraform_variable import apply_variableset, apply_variable
@@ -60,11 +61,17 @@ def init(setup):
     Args:
         setup: dict, the declared setup.
     """
-    org = setup['googleOrganization']['name']
+    org = from_env('GOOGLE_ORGANIZATION')
+    owner = from_env('EXTERNAL_OWNER')
+    admins = from_env('ADMINS_GROUP')
+    finops = from_env('FINOPS_GROUP')
+    policy = from_env('POLICY_GROUP')
+    # Fetch organization data
+    org_name = find_organization(org).name
 
     print('generating organization IAM policy... ')
 
-    set_org_access(org, iam.organization(setup))
+    set_org_access(org_name, iam.organization(owner, admins, finops, policy))
 
     print('DONE')
 
@@ -80,14 +87,16 @@ def role(setup):
     Args:
         setup: dict, the declared setup.
     """
-    org = setup['googleOrganization']['name']
-    member = f'group:{setup["googleGroups"]["executive"]}'
+    org = from_env('GOOGLE_ORGANIZATION')#setup['googleOrganization']['name']
+    # Fetch organization data
+    org_name = find_organization(org).name
+    member = f'group:{from_env("EXECUTIVE_GROUP")}'
 
     name = 'executiveRole'
 
     print(f'generating {name.split("Role", maxsplit=1)[0]} role... ')
 
-    executive_role = apply_role(parent=org, **(setup[name]))
+    executive_role = apply_role(parent=org_name, **(setup[name]))
 
     print('DONE')
 
@@ -95,7 +104,7 @@ def role(setup):
 
     print(f'generating {name.split("Role", maxsplit=1)[0]} role... ')
 
-    apply_role(parent=org, **(setup[name]))
+    apply_role(parent=org_name, **(setup[name]))
 
     print('DONE')
 
@@ -104,7 +113,7 @@ def role(setup):
     policy = Policy()
     policy.bindings.add(role=executive_role.name, members=[ member ])
 
-    add_org_access(org, policy)
+    add_org_access(org_name, policy)
 
     print('DONE')
 
@@ -119,14 +128,22 @@ def build(setup):
     Args:
         setup: dict, the declared setup.
     """
-    org = setup['googleOrganization']
+    org = from_env('GOOGLE_ORGANIZATION')#setup['googleOrganization']['name']
+    # Fetch organization data
+    org_data = find_organization(org)
+    org_name = org_data.name
+    org_directory = org_data.directory_customer_id
 
-    tfc_org = setup['terraformOrganization']
+    executives = from_env('EXECUTIVE_GROUP')
+
+    tfc_org = from_env('TFC_ORGANIZATION')
     tfc_prj = setup['terraformProject']
 
     uuid = str(randint(1,999999))
     project = setup['rootProject']
     project['project_id'] = f'{project["displayName"]}-{uuid}'
+
+    billing_account = from_env('GOOGLE_BILLING_ACCOUNT')
 
     services = project.pop('services')
 
@@ -154,9 +171,9 @@ def build(setup):
 
     print('generating root project... ')
 
-    root_project = apply_project(parent=org['name'], **project)
+    root_project = apply_project(parent=org_name, **project)
 
-    update_billing(project=root_project, name=setup['billingAccount'])
+    update_billing(project=root_project, name=billing_account)
 
     print('... billing updated... ')
 
@@ -164,7 +181,7 @@ def build(setup):
 
     print('... services enabled... ')
 
-    set_project_access(root_project, iam.project(setup))
+    set_project_access(root_project, iam.project(executives))
 
     print('... IAM policy set... ')
     print('DONE')
@@ -185,7 +202,7 @@ def build(setup):
 
     builder_account = apply_account(project=root_project, **(account))
 
-    set_account_access(builder_account, iam.account(setup, org_pool, tfc_id.id))
+    set_account_access(builder_account, iam.account(executives, org_pool, tfc_id.id))
 
     print('... IAM policy set... ')
     print('DONE')
@@ -194,7 +211,7 @@ def build(setup):
 
     print('generating workspace tag... ')
 
-    workspace_tag_key = apply_key(parent=org['name'], **(setup['workspaceTag']))
+    workspace_tag_key = apply_key(parent=org_name, **(setup['workspaceTag']))
 
     set_tag_access(workspace_tag_key, iam.workspace_tag(builder_account))
 
@@ -205,11 +222,11 @@ def build(setup):
 
     print('generating workspace folder... ')
 
-    workspace_folder = apply_folder(parent=org['name'], **(folder))
+    workspace_folder = apply_folder(parent=org_name, **(folder))
 
     set_folder_access(
         workspace_folder,
-        iam.workspace_folder(setup, builder_account)
+        iam.workspace_folder(setup, builder_account, executives, org_name)
     )
 
     print('... IAM policy set... ')
@@ -291,7 +308,7 @@ def build(setup):
         org_id=tfc_org,
         varset_id=org_varset.id,
         key='billing_account',
-        value=setup['billingAccount'].split('/')[-1],
+        value=billing_account.split('/')[-1],
         sensitive=True,
         category='terraform',
         hcl=False,
@@ -301,7 +318,7 @@ def build(setup):
         org_id=tfc_org,
         varset_id=org_varset.id,
         key='organization',
-        value=org['displayName'],
+        value=org,
         sensitive=False,
         category='terraform',
         hcl=False,
@@ -331,7 +348,7 @@ def build(setup):
         org_id=tfc_org,
         varset_id=org_varset.id,
         key='customer_directory',
-        value=org['directoryCustomerId'],
+        value=org_directory,
         sensitive=False,
         category='terraform',
         hcl=False,
@@ -367,9 +384,14 @@ def billing(setup):
     #create a google group
     #set billingAccountUser permission for group on billing account
     #add builder account as group manager
-    org = setup['googleOrganization']['name']
+    org = from_env('GOOGLE_ORGANIZATION')#setup['googleOrganization']['name']
+    # Fetch organization data
+    org_data = find_organization(org)
+    org_name = org_data.name
+    org_directory = org_data.directory_customer_id
 
-    directory = setup['googleOrganization']['directoryCustomerId']
+    billing_account = from_env('GOOGLE_BILLING_ACCOUNT')
+    billing_email = from_env('BILLING_GROUP')
 
     project = setup['rootProject']
     project['project_id'] = project['displayName']
@@ -377,19 +399,19 @@ def billing(setup):
 
     print('Looking for builder account... ')
 
-    project = apply_project(parent=org, **project)
+    project = apply_project(parent=org_name, **project)
 
     builder_account = f'{setup["builderAccount"]["name"]}@{project.project_id}.iam.gserviceaccount.com'
 
     print('DONE')
     print('Generate a Billing Google group... ')
 
-    billing_group = apply_group(parent=f'customers/{directory}', **(setup['billingGroup']))
+    billing_group = apply_group(parent=f'customers/{org_directory}', email=billing_email, **(setup['billingGroup']))
 
     print('DONE')
     print('Set IAM access for the group... ')
 
-    set_billing_access(setup['billingAccount'], iam.billing_account(setup))
+    set_billing_access(billing_account, iam.billing_account(billing_email))
 
     print('DONE')
     print('Add the builder account to the group... ')

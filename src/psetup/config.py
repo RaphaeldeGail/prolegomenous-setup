@@ -57,59 +57,24 @@ def from_yaml(custom_config=None):
         FileNotFoundError: if no configuration file is found.
     """
     files = []
+    config = {}
     default_system_config = f'{prefix}/config/psetup/default.yaml'
     default_user_config = f'{USER_BASE}/config/psetup/default.yaml'
 
-    if isfile(default_system_config):
-        files.append(default_system_config)
-    if isfile(default_user_config):
-        files.append(default_user_config)
-    if custom_config and isfile(custom_config):
-        files.append(custom_config)
+    for file in [default_system_config, default_user_config, custom_config]:
+        if file and isfile(file):
+            files.append(file)
+            with open(file, 'r', encoding='utf-8') as f:
+                update = safe_load(f)
+            config = _override(config, update)
 
     if not files:
         raise FileNotFoundError('No default configuration file')
 
-    google_organization = getenv('GOOGLE_ORGANIZATION', None)
-    google_billing_account = getenv('GOOGLE_BILLING_ACCOUNT', None)
-    external_owner = getenv('EXTERNAL_OWNER', None)
-    finops_group = getenv('FINOPS_GROUP', None)
-    admins_group = getenv('ADMINS_GROUP', None)
-    policy_group = getenv('POLICY_GROUP', None)
-    executive_group = getenv('EXECUTIVE_GROUP', None)
-    billing_group = getenv('BILLING_GROUP', None)
-    tfc_organization = getenv('TFC_ORGANIZATION', None)
-
-    # Fetch organization data
-    org = find_organization(google_organization)
-
-    environment = {
-        'googleOrganization': {
-            'name': org.name,
-            'displayName': google_organization,
-            'directoryCustomerId': org.directory_customer_id
-        },
-        'billingAccount': google_billing_account,
-        'billingGroup': {
-            'email': billing_group
-        },
-        'owner':  external_owner,
-        'googleGroups': {
-            'finops': finops_group,
-            'admins': admins_group,
-            'policy': policy_group,
-            'executive': executive_group
-        },
-        'terraformOrganization': tfc_organization
-    }
-
-    config = {}
-    # Load data from default configuration file
-    for file in files:
-        with open(file, 'r', encoding='utf-8') as f:
-            update = safe_load(f)
-        config = _override(config, update)
-
-    config = _override(config, environment)
-
     return config
+
+def from_env(name):
+    value = getenv(name)
+
+    if not value:
+        raise KeyError('Environment variable not found', name)

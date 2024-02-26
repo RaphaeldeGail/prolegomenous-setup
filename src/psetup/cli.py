@@ -37,7 +37,7 @@ from . import iam
 
 # Actions functions
 
-def show(setup):
+def show(args):
     """Show the values used for a root structure.
 
     Display the setup configuration as a map on standard output. Long entries
@@ -46,11 +46,14 @@ def show(setup):
     Args:
         setup: dict, the declared setup.
     """
+    # Read arguments values from custom config file
+    setup = from_yaml(args.config_file)
+
     pprint(setup, indent=1, depth=2, compact=True)
 
     return None
 
-def init(setup):
+def init(args):
     """Initialize the organization access.
 
     Set the IAM policy at the organization level for the top-level groups. If
@@ -61,6 +64,9 @@ def init(setup):
     Args:
         setup: dict, the declared setup.
     """
+    if args.config_file:
+        print('WARNING, unused flag "-f" for the "init" action.')
+
     org = from_env('GOOGLE_ORGANIZATION')
     owner = from_env('EXTERNAL_OWNER')
     admins = from_env('ADMINS_GROUP')
@@ -77,7 +83,7 @@ def init(setup):
 
     return None
 
-def role(setup):
+def role(args):
     """Create the IAM roles for a root structure.
 
     Create the "executive" and "builder" IAM roles at the organization level.
@@ -87,7 +93,10 @@ def role(setup):
     Args:
         setup: dict, the declared setup.
     """
-    org = from_env('GOOGLE_ORGANIZATION')#setup['googleOrganization']['name']
+    # Read arguments values from custom config file
+    setup = from_yaml(args.config_file)
+
+    org = from_env('GOOGLE_ORGANIZATION')
     # Fetch organization data
     org_name = find_organization(org).name
     member = f'group:{from_env("EXECUTIVE_GROUP")}'
@@ -119,7 +128,7 @@ def role(setup):
 
     return None
 
-def build(setup):
+def build(args):
     """Build the elements of a root structure.
 
     Create the various resources on Terraform Cloud and Google Cloud. Existing
@@ -128,7 +137,10 @@ def build(setup):
     Args:
         setup: dict, the declared setup.
     """
-    org = from_env('GOOGLE_ORGANIZATION')#setup['googleOrganization']['name']
+    # Read arguments values from custom config file
+    setup = from_yaml(args.config_file)
+
+    org = from_env('GOOGLE_ORGANIZATION')
     # Fetch organization data
     org_data = find_organization(org)
     org_name = org_data.name
@@ -372,7 +384,7 @@ def build(setup):
 
     return None
 
-def billing(setup):
+def billing(args):
     """Create the 'Billing Users' group for a root structure.
 
     Create the 'Billing Users' google group and add the builder account as its
@@ -381,10 +393,13 @@ def billing(setup):
     Args:
         setup: dict, the declared setup.
     """
+    # Read arguments values from custom config file
+    setup = from_yaml(args.config_file)
+
     #create a google group
     #set billingAccountUser permission for group on billing account
     #add builder account as group manager
-    org = from_env('GOOGLE_ORGANIZATION')#setup['googleOrganization']['name']
+    org = from_env('GOOGLE_ORGANIZATION')
     # Fetch organization data
     org_data = find_organization(org)
     org_name = org_data.name
@@ -468,8 +483,5 @@ def main():
     # Parse arguments from command line
     args = parser.parse_args()
 
-    # Read arguments values from custom config file
-    setup = from_yaml(args.config_file)
-
     # Launch the subcommand function
-    args.func(setup)
+    args.func(args)

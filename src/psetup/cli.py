@@ -44,7 +44,7 @@ def show(args):
     will be cut on display.
 
     Args:
-        setup: dict, the declared setup.
+        args: Namespace, the arguments from command line.
     """
     # Read arguments values from custom config file
     setup = from_yaml(args.config_file)
@@ -54,7 +54,7 @@ def show(args):
     return None
 
 def init(args):
-    """Initialize the organization access.
+    """Initializes the organization access.
 
     Set the IAM policy at the organization level for the top-level groups. If
     you initialize an organization with a root structure, you will be set back
@@ -62,7 +62,7 @@ def init(args):
     structure.
 
     Args:
-        setup: dict, the declared setup.
+        args: Namespace, the arguments from command line.
     """
     if args.config_file:
         print('WARNING, unused flag "-f" for the "init" action.')
@@ -72,10 +72,11 @@ def init(args):
     admins = from_env('ADMINS_GROUP')
     finops = from_env('FINOPS_GROUP')
     policy = from_env('POLICY_GROUP')
+
     # Fetch organization data
     org_name = find_organization(org).name
 
-    print('generating organization IAM policy... ')
+    print('Generating organization IAM policy... ')
 
     set_org_access(org_name, iam.organization(owner, admins, finops, policy))
 
@@ -84,26 +85,27 @@ def init(args):
     return None
 
 def role(args):
-    """Create the IAM roles for a root structure.
+    """Creates the IAM roles for a root structure.
 
-    Create the "executive" and "builder" IAM roles at the organization level.
+    Creates the "executive" and "builder" IAM roles at the organization level.
     Existing roles will be updated or left as it is, according to the setup
-    plan.
+    plan. Updates the organization access according to the new roles.
 
     Args:
-        setup: dict, the declared setup.
+        args: Namespace, the arguments from command line.
     """
+    org = from_env('GOOGLE_ORGANIZATION')
+    member = f'group:{from_env("EXECUTIVE_GROUP")}'
+
+    # Fetch organization data
+    org_name = find_organization(org).name
+
     # Read arguments values from custom config file
     setup = from_yaml(args.config_file)
 
-    org = from_env('GOOGLE_ORGANIZATION')
-    # Fetch organization data
-    org_name = find_organization(org).name
-    member = f'group:{from_env("EXECUTIVE_GROUP")}'
-
     name = 'executiveRole'
 
-    print(f'generating {name.split("Role", maxsplit=1)[0]} role... ')
+    print(f'Generating {name.split("Role", maxsplit=1)[0]} role... ')
 
     executive_role = apply_role(parent=org_name, **(setup[name]))
 
@@ -111,13 +113,13 @@ def role(args):
 
     name='builderRole'
 
-    print(f'generating {name.split("Role", maxsplit=1)[0]} role... ')
+    print(f'Generating {name.split("Role", maxsplit=1)[0]} role... ')
 
     apply_role(parent=org_name, **(setup[name]))
 
     print('DONE')
 
-    print('extending organization IAM policy... ')
+    print('Extending organization IAM policy... ')
 
     policy = Policy()
     policy.bindings.add(role=executive_role.name, members=[ member ])
@@ -129,33 +131,32 @@ def role(args):
     return None
 
 def build(args):
-    """Build the elements of a root structure.
+    """Builds the elements of a root structure.
 
-    Create the various resources on Terraform Cloud and Google Cloud. Existing
+    Creates the various resources on Terraform Cloud and Google Cloud. Existing
     resources will be updated or left as it is, according to the setup plan.
 
     Args:
-        setup: dict, the declared setup.
+        args: Namespace, the arguments from command line.
     """
-    # Read arguments values from custom config file
-    setup = from_yaml(args.config_file)
-
     org = from_env('GOOGLE_ORGANIZATION')
+    executives = from_env('EXECUTIVE_GROUP')
+    tfc_org = from_env('TFC_ORGANIZATION')
+    billing_account = from_env('GOOGLE_BILLING_ACCOUNT')
+
     # Fetch organization data
     org_data = find_organization(org)
     org_name = org_data.name
     org_directory = org_data.directory_customer_id
 
-    executives = from_env('EXECUTIVE_GROUP')
+    # Read arguments values from custom config file
+    setup = from_yaml(args.config_file)
 
-    tfc_org = from_env('TFC_ORGANIZATION')
     tfc_prj = setup['terraformProject']
 
     uuid = str(randint(1,999999))
     project = setup['rootProject']
     project['project_id'] = f'{project["displayName"]}-{uuid}'
-
-    billing_account = from_env('GOOGLE_BILLING_ACCOUNT')
 
     services = project.pop('services')
 
@@ -173,15 +174,15 @@ def build(args):
 
     ##### Terraform Cloud Project #####
 
-    print('generating Terraform Cloud project... ')
+    print('Generating Terraform Cloud project... ')
 
-    tfc_id = apply_terraform(name=tfc_prj, org_id=tfc_org)
+    tfc_prj = apply_terraform(name=tfc_prj, org_id=tfc_org)
 
     print('DONE')
 
     ##### Root Project #####
 
-    print('generating root project... ')
+    print('Generating root project... ')
 
     root_project = apply_project(parent=org_name, **project)
 
@@ -200,7 +201,7 @@ def build(args):
 
     ##### Workload Identity Pool #####
 
-    print('generating organization identities pool... ')
+    print('Generating organization identities pool... ')
 
     org_pool = apply_pool(project=root_project, **(setup['organizationPool']))
 
@@ -210,18 +211,19 @@ def build(args):
 
     ##### Builder Service Account #####
 
-    print('generating builder service account... ')
+    print('Generating builder service account... ')
 
     builder_account = apply_account(project=root_project, **(account))
 
-    set_account_access(builder_account, iam.account(executives, org_pool, tfc_id.id))
+    policy = iam.account(executives, org_pool, tfc_prj.id)
+    set_account_access(builder_account, policy)
 
     print('... IAM policy set... ')
     print('DONE')
 
     ##### Workspace Tag #####
 
-    print('generating workspace tag... ')
+    print('Generating workspace tag... ')
 
     workspace_tag_key = apply_key(parent=org_name, **(setup['workspaceTag']))
 
@@ -232,7 +234,7 @@ def build(args):
 
     ##### Workspace Folder #####
 
-    print('generating workspace folder... ')
+    print('Generating workspace folder... ')
 
     workspace_folder = apply_folder(parent=org_name, **(folder))
 
@@ -246,20 +248,20 @@ def build(args):
 
     ##### Terraform Variable Sets #####
 
-    print('generating variable set... ')
+    print('Generating variable set... ')
 
     creds_varset = apply_variableset(
         org_id=tfc_org,
         name=setup['credentialsVariableSet']['name'],
         description=setup['credentialsVariableSet']['description'],
-        project=tfc_id.id
+        project=tfc_prj.id
     )
 
     apply_variable(
         org_id=tfc_org,
         varset_id=creds_varset.id,
         key='project',
-        value=tfc_id.id,
+        value=root_project.project_id,
         sensitive=True,
         category='terraform',
         hcl=False,
@@ -385,28 +387,25 @@ def build(args):
     return None
 
 def billing(args):
-    """Create the 'Billing Users' group for a root structure.
+    """Creates the 'Billing Users' group for a root structure.
 
-    Create the 'Billing Users' google group and add the builder account as its
+    Creates the 'Billing Users' google group and add the builder account as its
     manager.
 
     Args:
-        setup: dict, the declared setup.
+        args: Namespace, the arguments from command line.
     """
-    # Read arguments values from custom config file
-    setup = from_yaml(args.config_file)
-
-    #create a google group
-    #set billingAccountUser permission for group on billing account
-    #add builder account as group manager
     org = from_env('GOOGLE_ORGANIZATION')
+    billing_account = from_env('GOOGLE_BILLING_ACCOUNT')
+    billing_email = from_env('BILLING_GROUP')
+
     # Fetch organization data
     org_data = find_organization(org)
     org_name = org_data.name
     org_directory = org_data.directory_customer_id
 
-    billing_account = from_env('GOOGLE_BILLING_ACCOUNT')
-    billing_email = from_env('BILLING_GROUP')
+    # Read arguments values from custom config file
+    setup = from_yaml(args.config_file)
 
     project = setup['rootProject']
     project['project_id'] = project['displayName']
@@ -416,22 +415,40 @@ def billing(args):
 
     project = apply_project(parent=org_name, **project)
 
-    builder_account = f'{setup["builderAccount"]["name"]}@{project.project_id}.iam.gserviceaccount.com'
+    domain = f'{project.project_id}.iam.gserviceaccount.com'
+    builder_account = f'{setup["builderAccount"]["name"]}@{domain}'
 
     print('DONE')
+
+    ##### Google Group #####
+
     print('Generate a Billing Google group... ')
 
-    billing_group = apply_group(parent=f'customers/{org_directory}', email=billing_email, **(setup['billingGroup']))
+    billing_group = apply_group(
+        parent=f'customers/{org_directory}',
+        email=billing_email,
+        **(setup['billingGroup'])
+    )
 
     print('DONE')
+
+    ##### IAM Policy #####
+
     print('Set IAM access for the group... ')
 
     set_billing_access(billing_account, iam.billing_account(billing_email))
 
     print('DONE')
+
+    ##### Group Member#####
+
     print('Add the builder account to the group... ')
 
-    apply_membership(parent=billing_group.name, email=builder_account, roles=['MANAGER', 'MEMBER'])
+    apply_membership(
+        parent=billing_group.name,
+        email=builder_account,
+        roles=['MANAGER', 'MEMBER']
+    )
 
     print('DONE')
 
@@ -464,7 +481,6 @@ def main():
     generating a configuration for the root structure, it delegates the
     subsequent actions to specific executive function.
     """
-
     parser = ArgumentParser(**command)
     for option, config in options.items():
         parser.add_argument(option, **config)

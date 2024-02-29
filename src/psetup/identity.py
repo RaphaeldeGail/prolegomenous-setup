@@ -150,15 +150,15 @@ def _create_group(group):
     """
     # build the create request body
     body = {
-        "description": group.description,
-        "displayName": group.display_name,
-        "groupKey": {
-        "id": group.group_id
+        'description': group.description,
+        'displayName': group.display_name,
+        'groupKey': {
+        'id': group.group_id
         },
-        "labels": {
-        "cloudidentity.googleapis.com/groups.discussion_forum": "",
+        'labels': {
+        'cloudidentity.googleapis.com/groups.discussion_forum': '',
         },
-        "parent": group.parent
+        'parent': group.parent
     }
 
     existing_group = Group(
@@ -261,12 +261,12 @@ def _create_membership(membership):
     """
     # build the create request body
     body = {
-        "preferredMemberKey": {
-            "id": membership.account_id,
+        'preferredMemberKey': {
+            'id': membership.account_id,
         },
-        "roles": [
-            { 
-                "name": role,
+        'roles': [
+            {
+                'name': role,
             } for role in membership.roles
         ]
     }
@@ -301,7 +301,7 @@ def _get_membership(membership):
 
     Raises:
         IndexError, if there is no membership matching the definition.
-    """ 
+    """
     existing = None
 
     existing_membership = Membership(
@@ -316,7 +316,7 @@ def _get_membership(membership):
             results = request.execute()
 
             for result in results.get('memberships', []):
-                if result['preferredMemberKey']['id'] == existing_membership.account_id:
+                if result['preferredMemberKey']['id'] == membership.account_id:
                     existing = result
 
             request = api.list_next(request, results)

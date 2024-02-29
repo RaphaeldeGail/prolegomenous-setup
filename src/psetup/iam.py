@@ -9,9 +9,6 @@ Typical usage example:
 
 from google.iam.v1.policy_pb2 import Policy
 
-from .config import from_env
-from .organization import find as find_organization
-
 def organization(owner, admins, finops, policy):
     """Returns the IAM policy for the Google organization.
 

@@ -1,13 +1,15 @@
 """Render a complete set of variables for the root structure.
 
-The `config` module will look for a standard configuration file and a specific
-environment file, both in YAML format, to generate the setup values to build
-the root structure. Standard configuration is first read and then its entries
-are superseded by any present in the custom configuration.
+The `config` module will look for a standard configuration file in YAML format,
+and specific environment variables to generate the setup values to build the
+root structure. Standard configuration is first read and then its entries
+are overridden by any present in the custom configuration.
 
 Typical usage example:
 
   setup = config.from_yaml()
+
+  value = config.from_env('EnvironmentVariableName')
 """
 
 from yaml import safe_load
@@ -15,8 +17,6 @@ from sys import prefix
 from site import USER_BASE
 from os.path import isfile
 from os import getenv
-
-from .organization import find as find_organization
 
 def _override(base, update):
     """Override a dictionary entry, keys by keys subkeys by subkeys.
@@ -74,7 +74,22 @@ def from_yaml(custom_config=None):
     return config
 
 def from_env(name):
+    """Collect a value from an environment variable.
+
+    If the environment variable is missing, the function raises an exception.
+
+    Args:
+        name: string, the name of the environment variable.
+
+    Returns:
+        string, the corresponding value.
+
+    Raises:
+        KeyError, if the environment variable is missing.
+    """
     value = getenv(name)
 
     if not value:
         raise KeyError('Environment variable not found', name)
+
+    return value

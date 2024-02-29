@@ -26,7 +26,15 @@ class Workspace:
         attributes: dict, a map for the definition of the variable set.
         project: string, the id of the project hosting the workspace.
     """
-    def __init__(self, wrk_id=None, name=None, description=None, repo_id=None, oauth_token=None, project=None):
+    def __init__(
+            self,
+            wrk_id=None,
+            name=None,
+            description=None,
+            repo_id=None,
+            oauth_token=None,
+            project=None
+        ):
         """Initializes the instance based on attributes.
 
         Args:
@@ -35,37 +43,39 @@ class Workspace:
             name: string, the name of the workspace.
             project: string, the ID of the project hosting the workspace.
             description: string, a description of the workspace.
-            repo_id: string, the repository name used as a version controlling source.
-            oauth_token: string, the oauth token ID for authenticating against the version controlling source.
+            repo_id: string, the repository name used as a version controlling
+                source.
+            oauth_token: string, the oauth token ID for authenticating against
+                the version controlling source.
         """
         self.id = wrk_id
         self.attributes = {
-            "allow-destroy-plan": True,
-            "auto-apply": True,
-            "auto-apply-run-trigger": True,
-            "auto-destroy-activity-duration": "14d",
-            "environment": "default",
-            "name": name,
-            "queue-all-runs": False,
-            "speculative-enabled": True,
-            "structured-run-output-enabled": True,
-            "terraform-version": "1.2.0",
-            "working-directory": "/terraform",
-            "global-remote-state": False,
-            "execution-mode": "remote",
-            "vcs-repo": {
-                "identifier": repo_id,
-                "oauth-token-id": oauth_token
+            'allow-destroy-plan': True,
+            'auto-apply': True,
+            'auto-apply-run-trigger': True,
+            'auto-destroy-activity-duration': '14d',
+            'environment': 'default',
+            'name': name,
+            'queue-all-runs': False,
+            'speculative-enabled': True,
+            'structured-run-output-enabled': True,
+            'terraform-version': '1.2.0',
+            'working-directory': '/terraform',
+            'global-remote-state': False,
+            'execution-mode': 'remote',
+            'vcs-repo': {
+                'identifier': repo_id,
+                'oauth-token-id': oauth_token
             },
-            "description": description,
-            "file-triggers-enabled": True,
-            "trigger-patterns": [
-                "/terraform/*.tf"
+            'description': description,
+            'file-triggers-enabled': True,
+            'trigger-patterns': [
+                '/terraform/*.tf'
             ],
-            "source-name": "modest python client",
-            "setting-overwrites": {
-                "execution-mode": False,
-                "agent-pool": False
+            'source-name': 'modest python client',
+            'setting-overwrites': {
+                'execution-mode': False,
+                'agent-pool': False
             }
         }
         self.project = project
@@ -313,11 +323,12 @@ def _get(org_id, declared_workspace):
     """
     exists = False
 
+    name=declared_workspace.attributes['name']
     existing_workspace = Workspace(
-        name=declared_workspace.attributes['name']
+        name=name
     )
 
-    workspaces = _build(org_id).workspaces.list_all(search=f'{declared_workspace.attributes["name"]}')
+    workspaces = _build(org_id).workspaces.list_all(search=name)
 
     for workspace in workspaces.get('data', []):
         if workspace['attributes']['name'] == \

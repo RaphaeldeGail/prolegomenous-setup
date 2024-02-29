@@ -191,9 +191,17 @@ builderRole:
     - billing.budgets.get
     - billing.resourcebudgets.read
     - billing.resourcebudgets.write
+    - cloudkms.cryptoKeys.create
+    - cloudkms.cryptoKeys.get
+    - cloudkms.cryptoKeys.getIamPolicy
+    - cloudkms.cryptoKeys.list
+    - cloudkms.cryptoKeys.setIamPolicy
+    - cloudkms.cryptoKeys.update
     - cloudkms.cryptoKeyVersions.destroy
     - cloudkms.cryptoKeyVersions.get
     - cloudkms.cryptoKeyVersions.list
+    - cloudkms.keyRings.create
+    - cloudkms.keyRings.createTagBinding
     - cloudkms.keyRings.deleteTagBinding
     - cloudkms.keyRings.get
     - cloudkms.keyRings.getIamPolicy

@@ -65,7 +65,7 @@ builderAccount:
 workspaceFolder:
   displayName: 'Workspaces'
 executiveRole:
-  name: orgExecutive
+  name: organization.executive
   title: Organization Executive
   description: Can manage an organization.
   stage: GA
@@ -183,7 +183,7 @@ executiveRole:
     - storage.buckets.listEffectiveTags
     - storage.buckets.listTagBindings
 builderRole:
-  name: workspaceBuilder
+  name: workspace.builder
   title: Workspace Builder
   description: Can build workspace.
   stage: GA

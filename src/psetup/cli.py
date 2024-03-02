@@ -164,7 +164,7 @@ def build(args):
     condition = f'organization:{tfc_org}:project:{tfc_prj}'
     provider['attributeCondition'] = f'assertion.sub.startsWith("{condition}")'
     provider['oidc'] = {
-        'allowedAudiences': [f'https://tfc.{org["displayName"]}'],
+        'allowedAudiences': [f'https://tfc.{org}'],
         'issuerUri': provider['oidc']['issuerUri']
     }
 

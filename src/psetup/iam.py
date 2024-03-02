@@ -85,6 +85,7 @@ def workspace_tag(builder_account):
 
     iam = Policy()
     iam.bindings.add(role='roles/resourcemanager.tagAdmin', members=[build])
+    iam.bindings.add(role='roles/resourcemanager.tagUser', members=[build])
 
     return iam
 

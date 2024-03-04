@@ -41,7 +41,7 @@ def show(args):
     """Show the values used for a root structure.
 
     Display the setup configuration as a map on standard output. Long entries
-    will be cut on display.
+    will be cut on display. No authentication required.
 
     Args:
         args: Namespace, the arguments from command line.
@@ -59,7 +59,8 @@ def init(args):
     Set the IAM policy at the organization level for the top-level groups. If
     you initialize an organization with a root structure, you will be set back
     to top-level group access and lose almost all access to your root
-    structure.
+    structure. You should authenticate as the owner of the Google organization
+    for this action.
 
     Args:
         args: Namespace, the arguments from command line.
@@ -89,7 +90,9 @@ def role(args):
 
     Creates the "executive" and "builder" IAM roles at the organization level.
     Existing roles will be updated or left as it is, according to the setup
-    plan. Updates the organization access according to the new roles.
+    plan. Updates the organization access according to the new roles. You
+    should authenticate as an "Organization Administrator" on Google Cloud for
+    this action.
 
     Args:
         args: Namespace, the arguments from command line.
@@ -135,6 +138,8 @@ def build(args):
 
     Creates the various resources on Terraform Cloud and Google Cloud. Existing
     resources will be updated or left as it is, according to the setup plan.
+    You should authenticate as an "Organization Executive" on Google Cloud for
+    this action, as well as an "Organization Owner" on Terraform Cloud.
 
     Args:
         args: Namespace, the arguments from command line.
@@ -390,7 +395,8 @@ def billing(args):
     """Creates the 'Billing Users' group for a root structure.
 
     Creates the 'Billing Users' google group and add the builder account as its
-    manager.
+    manager. You should authenticate as a "FinOps" on Google Cloud for this
+    action.
 
     Args:
         args: Namespace, the arguments from command line.
@@ -468,7 +474,9 @@ options = {
 
 sub_command = {
         'title': 'The Action Commands',
-        'description': 'The different building steps of the %(prog)s command.',
+        'description': '''The different building steps of the %(prog)s command.
+            Each requires a different Google Cloud authentication and/or
+            Terraform Cloud authentication.''',
         'help': 'Select one action, preferably following the list order.'
 }
 

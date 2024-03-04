@@ -8,7 +8,7 @@ This client is in an early development stage.
 
 ## Testing
 
-Test this code with **pylintrc**.
+Test this code with **pylint**.
 
 ```bash
 pylint src/psetup
@@ -37,4 +37,10 @@ env-name/bin/pip install dist/psetup-0.2.0-py3-none-any.whl
 
 The following libraries will be installed when you install the client library:
 
+* [google-api-python-client](https://github.com/googleapis/google-api-python-client/)
 * [google-cloud-resource-manager](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-resource-manager)
+* [google-cloud-billing](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-billing)
+* [google-cloud-service-usage](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-service-usage)
+* [grpc-google-iam-v1](https://github.com/googleapis/python-grpc-google-iam-v1)
+* [PyYAML](https://github.com/yaml/pyyaml)
+* [terrasnek](https://github.com/dahlke/terrasnek)

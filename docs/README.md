@@ -15,8 +15,10 @@ terraform workspace counterpart.
 
 ![Function of the Root Strucure](img/root-functional.svg "Function of the Root Structure")
 
-The *root* project allows a specific project from terraform Cloud to authenticate to the Google Cloud Organization in order to use a *Builder* account to set up *workspaces* inside the **Workspaces** folder.
-A *workspace* is a complete unit of resources for a team to build its project autonomously.
+The *root* project allows a specific project from terraform Cloud to
+authenticate to the Google Cloud Organization in order to use a *Builder*
+account to set up *workspaces* inside the **Workspaces** folder. A *workspace*
+is a complete unit of resources for a team to build its project autonomously.
 
 ### Organisation of the *root* structure
 
@@ -38,15 +40,17 @@ The *psetup* client relies on an *executive* group member for creation.
 
 The *root* structure relies on three roles for usage:
 
-- the *builder* role, for a service account to build any **workspace** in the *Workspaces* folder.
+- the *builder* role, for a service account to build any **workspace** in the
+*Workspaces* folder.
 - the *admin* role, for a group to manage the *root* structure's building blocks.
 - the *viewer* role, for a group to inspect the root structure.
 
 ![Roles in the Root Strucure](img/root-roles.svg "Roles in the Root Structure")
 
-The *builder* role will be given to the *builder* service account of the *root* structure.
-The *admin* role will be given to the *executive* group members.
-The *viewer* role will be given to the *finops* and *policy administrators* group members.
+The *builder* role will be given to the *builder* service account of the
+*root* structure. The *admin* role will be given to the *executive* group
+members. The *viewer* role will be given to the *finops* and
+*policy administrators* group members.
 
 ## Usage of the client
 
@@ -54,7 +58,9 @@ This client relies on a python package to create and/or update
 the *root* structure described above.
 
 - [Prerequisites](prerequisites.md)
+- [Authentication](authentication.md)
+- [Actions](actions.md)
 
 ## Reference Documentation
 
-- Reference documentation for the python Google Cloud libraries [google-cloud-python](https://github.com/googleapis/google-cloud-python/blob/main/README.rst).
+- Reference documentation for ...

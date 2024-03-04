@@ -1,6 +1,6 @@
 # Prerequisites
 
-## Google Accounts
+## Google Groups
 
 In order to create the necessary building blocks for the root strucure you will
 need several accounts with high-level permission:
@@ -24,7 +24,16 @@ access to Google Cloud APIs are necessary so it is encouraged to rely on
 gcloud auth application-default login
 ```
 
-## The *Environment* File
+Terraform Cloud, organization token
+
+```bash
+export TFC_TOKEN='xyz'
+```
+
+For more information on which user should authenticate, follow the description
+in [Authentication](authentication.md).
+
+## The *Environment* Variables
 
 A specific configuration file *environment.yaml*, containing all the specific
 data from the organization should be created at the root of this project and
@@ -46,3 +55,7 @@ terraformCloudOrganization:
     name: string, the name of the Terraform Cloud organization
     workspaceProject: string, the ID of the terraform project for workspaces
 ```
+
+## The *Setup* File
+
+a YAML file.

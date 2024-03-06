@@ -33,14 +33,30 @@ Install the client using pip.
 env-name/bin/pip install dist/psetup-0.2.0-py3-none-any.whl
 ```
 
+## Usage
+
+The package distributes two clients:
+
+- the *prolegomenous setup* client, to initialize the root structure. Corresponding command:
+
+    ```bash
+    psetup
+    ```
+
+- the *workspace setup* client, a small client to create a workspace as code in the root structure. Corresponding command:
+
+    ```bash
+    wsetup
+    ```
+
 ## Third Party Libraries and Dependencies
 
 The following libraries will be installed when you install the client library:
 
-* [google-api-python-client](https://github.com/googleapis/google-api-python-client/)
-* [google-cloud-resource-manager](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-resource-manager)
-* [google-cloud-billing](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-billing)
-* [google-cloud-service-usage](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-service-usage)
-* [grpc-google-iam-v1](https://github.com/googleapis/python-grpc-google-iam-v1)
-* [PyYAML](https://github.com/yaml/pyyaml)
-* [terrasnek](https://github.com/dahlke/terrasnek)
+- [google-api-python-client](https://github.com/googleapis/google-api-python-client/)
+- [google-cloud-resource-manager](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-resource-manager)
+- [google-cloud-billing](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-billing)
+- [google-cloud-service-usage](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-service-usage)
+- [grpc-google-iam-v1](https://github.com/googleapis/python-grpc-google-iam-v1)
+- [PyYAML](https://github.com/yaml/pyyaml)
+- [terrasnek](https://github.com/dahlke/terrasnek)

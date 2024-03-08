@@ -7,18 +7,19 @@ account with enough permissions to build the blocks (see below).
 
 ## The *root* structure
 
+A *root* structure is a dual object cast both on Terraform Cloud and Google Cloud.
+It can host several independent workspaces.
+
 ### Function of the *root* structure
 
-A root structure inside a Google Cloud Organization allows you to build
-complete independant workspaces for your project, each controlled by a
-terraform workspace counterpart.
+A root structure sets a dual relationships beetwen a Terraform Cloud organization and a Google Cloud organization. Every workspace in Terraform Cloud generates a *workspace* in Google Cloud.
+A *workspace* is an independent structure to host a specific project infrastructure where a team can build its project autonomously.
 
 ![Function of the Root Strucure](img/root-functional.svg "Function of the Root Structure")
 
 The *root* project allows a specific project from terraform Cloud to
 authenticate to the Google Cloud Organization in order to use a *Builder*
-account to set up *workspaces* inside the **Workspaces** folder. A *workspace*
-is a complete unit of resources for a team to build its project autonomously.
+account to set up *workspaces* inside the **Workspaces** folder.
 
 ### Organisation of the *root* structure
 
@@ -54,12 +55,16 @@ members. The *viewer* role will be given to the *finops* and
 
 ## Usage of the client
 
+### The **psetup** client
+
 This client relies on a python package to create and/or update
 the *root* structure described above.
 
 - [Prerequisites](prerequisites.md)
 - [Authentication](authentication.md)
 - [Actions](actions.md)
+
+### The **wsetup** client
 
 ## Reference Documentation
 

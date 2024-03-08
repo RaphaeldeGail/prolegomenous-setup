@@ -1,34 +1,62 @@
-# prolegomenous-setup
+# Prolegomenous Setup
 
-Setup for the initial configuration of Google Cloud organization.
+This is the initial setup client for building a *root* structure in a Google
+Cloud organization. To get started, please see the
+[docs folder](docs/README.md).
 
-## Pre-requisites
+This client is in an early development stage.
 
-Setup the following variables with your specific values:
+## Testing
 
-- **ORGANIZATION_DOMAIN**, The domain name you will use for your organization (ex: *random-company.com*)
-- **TFC_ORGANIZATION**, The name of your *Terraform Cloud* organization you will use (ex: *random-company-tfc*)
-- **TFC_WORKSPACE_PROJECT**, The **ID** of your *Terraform Cloud* project uou will use (ex: *prj-HGGhhggggHHGG*)
+Test this code with **pylint**.
 
-The script relies on YAML parser for bash: yq.
+```bash
+pylint src/psetup
+```
 
-## Google Groups
+## Packaging
 
-- Administrators
-- Policy Administrators
-- FinOps
+Build this package in a **virtualenv** using pip.
+For more information about virtualenv, please look for the [virtualenv website](https://virtualenv.pypa.io/en/latest/).
 
-## Root project
+```bash
+virtualenv env-name
+source env-name/bin/activate
+env-name/bin/python -m build
+```
 
-A unique ID (UUID) must be set for the root project.
+## Installation
 
-## Service Accounts
+Install the client using pip.
 
-- builder
-- secretary
+```bash
+env-name/bin/pip install dist/psetup-0.2.0-py3-none-any.whl
+```
 
-## IAM policies
+## Usage
 
-Workload identity federation.
+The package distributes two clients:
 
-## Tags
+- the *prolegomenous setup* client, to initialize the root structure. Corresponding command:
+
+    ```bash
+    psetup
+    ```
+
+- the *workspace setup* client, a small client to create a workspace as code in the root structure. Corresponding command:
+
+    ```bash
+    wsetup
+    ```
+
+## Third Party Libraries and Dependencies
+
+The following libraries will be installed when you install the client library:
+
+- [google-api-python-client](https://github.com/googleapis/google-api-python-client/)
+- [google-cloud-resource-manager](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-resource-manager)
+- [google-cloud-billing](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-billing)
+- [google-cloud-service-usage](https://github.com/googleapis/google-cloud-python/tree/main/packages/google-cloud-service-usage)
+- [grpc-google-iam-v1](https://github.com/googleapis/python-grpc-google-iam-v1)
+- [PyYAML](https://github.com/yaml/pyyaml)
+- [terrasnek](https://github.com/dahlke/terrasnek)

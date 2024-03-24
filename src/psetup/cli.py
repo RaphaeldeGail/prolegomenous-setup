@@ -147,7 +147,9 @@ def build(args):
     org = from_env('GOOGLE_ORGANIZATION')
     executives = from_env('EXECUTIVE_GROUP')
     tfc_org = from_env('TFC_ORGANIZATION')
+    tfc_token = from_env('TFC_TOKEN')
     billing_account = from_env('GOOGLE_BILLING_ACCOUNT')
+    billing_email = from_env('BILLING_GROUP')
 
     # Fetch organization data
     org_data = find_organization(org)
@@ -166,7 +168,7 @@ def build(args):
     services = project.pop('services')
 
     provider = setup['terraformProvider']
-    condition = f'organization:{tfc_org}:project:{tfc_prj}'
+    condition = f'organization:{tfc_org}'
     provider['attributeCondition'] = f'assertion.sub.startsWith("{condition}")'
     provider['oidc'] = {
         'allowedAudiences': [f'https://tfc.{org}'],
@@ -276,37 +278,6 @@ def build(args):
     apply_variable(
         org_id=tfc_org,
         varset_id=creds_varset.id,
-        key='TFC_GCP_WORKLOAD_PROVIDER_NAME',
-        value=provider.name,
-        sensitive=False,
-        category='env',
-        hcl=False,
-        description='The canonical name of the workload identity provider.',
-    )
-    apply_variable(
-        org_id=tfc_org,
-        varset_id=creds_varset.id,
-        key='TFC_GCP_WORKLOAD_IDENTITY_AUDIENCE',
-        value=provider.oidc['allowedAudiences'][0],
-        sensitive=False,
-        category='env',
-        hcl=False,
-        description='Will be used as the aud claim for the identity token.',
-    )
-    apply_variable(
-        org_id=tfc_org,
-        varset_id=creds_varset.id,
-        key='TFC_GCP_PROVIDER_AUTH',
-        value='true',
-        sensitive=False,
-        category='env',
-        hcl=False,
-        description='Must be present and set to true, or Terraform Cloud will \
-            not attempt to use dynamic credentials to authenticate to GCP.',
-    )
-    apply_variable(
-        org_id=tfc_org,
-        varset_id=creds_varset.id,
         key='TFC_GCP_RUN_SERVICE_ACCOUNT_EMAIL',
         value=builder_account.email,
         sensitive=True,
@@ -314,6 +285,26 @@ def build(args):
         hcl=False,
         description='The service account email Terraform Cloud will use when \
             authenticating to GCP.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=creds_varset.id,
+        key='TFE_TOKEN',
+        value=tfc_token,
+        sensitive=True,
+        category='env',
+        hcl=False,
+        description='The Terraform Cloud organization token.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=creds_varset.id,
+        key='tfe_organization',
+        value=tfc_org,
+        sensitive=False,
+        category='terraform',
+        hcl=False,
+        description='Name of the organization on Terraform Cloud.',
     )
 
     org_varset = apply_variableset(
@@ -383,6 +374,57 @@ def build(args):
         hcl=False,
         description='The ID of the \\\"Workspaces\\\" folder that contains all \
             subsequent workspaces.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=org_varset.id,
+        key='billing_email',
+        value=billing_email,
+        sensitive=False,
+        category='terraform',
+        hcl=False,
+        description='The name of the group with billing usage authorization.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=org_varset.id,
+        key='organization_identities',
+        value=org_pool.name,
+        sensitive=False,
+        category='terraform',
+        hcl=False,
+        description='The name of the group with billing usage authorization.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=org_varset.id,
+        key='TFC_GCP_PROVIDER_AUTH',
+        value='true',
+        sensitive=False,
+        category='env',
+        hcl=False,
+        description='Must be present and set to true, or Terraform Cloud will \
+            not attempt to use dynamic credentials to authenticate to GCP.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=org_varset.id,
+        key='TFC_GCP_WORKLOAD_PROVIDER_NAME',
+        value=provider.name,
+        sensitive=False,
+        category='env',
+        hcl=False,
+        description='The canonical name of the workload identity provider.',
+    )
+    apply_variable(
+        org_id=tfc_org,
+        varset_id=org_varset.id,
+        key='TFC_GCP_WORKLOAD_IDENTITY_AUDIENCE',
+        value=provider.oidc['allowedAudiences'][0],
+        sensitive=False,
+        category='env',
+        hcl=False,
+        description='Will be used as the aud claim for the identity token.',
     )
 
     print('DONE')

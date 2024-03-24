@@ -15,7 +15,7 @@ dependencies = [
 
 setup(
         name='psetup',
-        version='0.2.0',
+        version='0.2.1',
         author='Raphaël',
         author_email='r@gmail.com',
         description='Setup tool for Google Cloud organization structure',

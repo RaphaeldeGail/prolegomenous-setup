@@ -30,6 +30,7 @@ class Workspace:
             self,
             wrk_id=None,
             name=None,
+            version=None,
             description=None,
             repo_id=None,
             oauth_token=None,
@@ -47,6 +48,7 @@ class Workspace:
                 source.
             oauth_token: string, the oauth token ID for authenticating against
                 the version controlling source.
+            version: string, the version for terraform runs on this workspace.
         """
         self.id = wrk_id
         self.attributes = {
@@ -59,7 +61,7 @@ class Workspace:
             'queue-all-runs': False,
             'speculative-enabled': True,
             'structured-run-output-enabled': True,
-            'terraform-version': '1.2.0',
+            'terraform-version': version,
             'working-directory': '/terraform',
             'global-remote-state': False,
             'execution-mode': 'remote',
@@ -341,7 +343,7 @@ def _get(org_id, declared_workspace):
 
     return existing_workspace
 
-def apply(name, org_id, project, repo_id, description, oauth_token):
+def apply(name, org_id, project, version, repo_id, description, oauth_token):
     """Generate a workspace.
 
     Can either create, update or leave it as it is.
@@ -356,6 +358,7 @@ def apply(name, org_id, project, repo_id, description, oauth_token):
     declared_workspace = Workspace(
         name=name,
         description=description,
+        version=version,
         repo_id=repo_id,
         oauth_token=oauth_token,
         project=project

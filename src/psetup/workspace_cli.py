@@ -37,6 +37,7 @@ def workspace(wconfile):
     finops_group = setup['finopsGroup']
     policy_group = setup['policyGroup']
     provider = setup['provider']
+    version  = setup['version']
 
     description = ''
     if 'description' in setup:
@@ -68,6 +69,7 @@ def workspace(wconfile):
         name=name,
         org_id=tfc_org,
         project=tfc_prj,
+        version=version,
         repo_id=repo_id,
         description=description,
         oauth_token=oauth_token
